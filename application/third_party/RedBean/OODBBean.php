@@ -11,19 +11,62 @@
  * This source file is subject to the BSD/GPLv2 License that is bundled
  * with this source code in the file license.txt.
  */
-class RedBean_OODBBean implements IteratorAggregate {
+class RedBean_OODBBean implements IteratorAggregate, ArrayAccess {
 
 
+	/**
+	 * Properties of the bean. These are kept in a private
+	 * array called properties and exposed through the array interface.
+	 *
+	 * @var array $properties
+	 */
 	private $properties = array();
 
 	/**
 	 * Meta Data storage. This is the internal property where all
 	 * Meta information gets stored.
+	 * 
 	 * @var array
 	 */
 	private $__info = NULL;
 
+	/**
+	 * Contains a BeanHelper to access service objects like
+	 * te association manager and OODB.
+	 *
+	 * @var RedBean_BeanHelper
+	 */
+	private $beanHelper = NULL;
 
+	/**
+	 * Contains the latest Fetch Type.
+	 * A Fetch Type is a preferred type for the next nested bean.
+	 *
+	 * @var null
+	 */
+	public static $fetchType = NULL;
+
+	/**
+	 * Sets the Bean Helper. Normally the Bean Helper is set by OODB.
+	 * Here you can change the Bean Helper. The Bean Helper is an object
+	 * providing access to a toolbox for the bean necessary to retrieve
+	 * nested beans (bean lists: ownBean,sharedBean) without the need to
+	 * rely on static calls to the facade (or make this class dep. on OODB).
+	 * 
+	 * @param RedBean_IBeanHelper $helper
+	 * @return void
+	 */
+	public function setBeanHelper(RedBean_IBeanHelper $helper) {
+		$this->beanHelper = $helper;
+	}
+
+
+	/**
+	 * Returns an ArrayIterator so you can treat the bean like
+	 * an array with the properties container as its contents.
+	 *
+	 * @return ArrayIterator $arrayIt an array iterator instance with $properties
+	 */
 	public function getIterator() {
 		return new ArrayIterator($this->properties);
 	}
@@ -41,10 +84,12 @@ class RedBean_OODBBean implements IteratorAggregate {
 	 * pass a comma separated list of property names. This method is
 	 * chainable because it returns its own object.
 	 * Imports data into bean
-	 * @param array $array
-	 * @param mixed $selection
-	 * @param boolean $notrim
-	 * @return RedBean_OODBBean $this
+	 *
+	 * @param array        $array     what you want to import
+	 * @param string|array $selection selection of values
+	 * @param boolean      $notrim    if TRUE values will not be trimmed
+	 *
+	 *    @return RedBean_OODBBean $this
 	 */
 	public function import( $arr, $selection=false, $notrim=false ) {
 		if (is_string($selection)) $selection = explode(",",$selection);
@@ -63,15 +108,17 @@ class RedBean_OODBBean implements IteratorAggregate {
 	/**
 	 * Exports the bean as an array.
 	 * This function exports the contents of a bean to an array and returns
-	 * the resulting array. If $meta equals boolean TRUE, then the array will
+	 * the resulting array. If $meta eq uals boolean TRUE, then the array will
 	 * also contain the __info section containing the meta data inside the
 	 * RedBean_OODBBean Bean object.
 	 * @param boolean $meta
 	 * @return array $arr
 	 */
 	public function export($meta = false) {
-		$arr = array();
 		$arr = $this->properties;
+		foreach($arr as $k=>$v) {
+			if (is_array($v) || is_object($v)) unset($arr[$k]);
+		}
 		if ($meta) $arr["__info"] = $this->__info;
 		return $arr;
 	}
@@ -89,6 +136,56 @@ class RedBean_OODBBean implements IteratorAggregate {
 	}
 
 
+
+	/**
+	 * Returns the ID of the bean no matter what the ID field is.
+	 * 
+	 * @return string $id record Identifier for bean
+	 */
+	public function getID() {
+		$idfield = $this->getMeta("sys.idfield");
+		return (string) $this->$idfield;
+	}
+
+	/**
+	 * Unsets a property. This method will load the property first using
+	 * __get.
+	 *
+	 * @param  string $property property
+	 *
+	 * @return void
+	 */
+	public function __unset($property) {
+
+		$this->__get($property);
+
+		$fieldLink = $property."_id";
+		if (isset($this->$fieldLink)) {
+			//wanna unset a bean reference?
+			$this->$fieldLink = null;
+			return;
+		}
+		
+		if ((isset($this->properties[$property]))) {
+			unset($this->properties[$property]);
+		}
+
+		
+	}
+
+	/**
+	 * Removes a property from the properties list without invoking
+	 * an __unset on the bean.
+	 *
+	 * @param  string $property property that needs to be unset
+	 *
+	 * @return void
+	 */
+	public function removeProperty( $property ) {
+		unset($this->properties[$property]);
+	}
+
+
 	/**
 	 * Magic Getter. Gets the value for a specific property in the bean.
 	 * If the property does not exist this getter will make sure no error
@@ -98,10 +195,61 @@ class RedBean_OODBBean implements IteratorAggregate {
 	 * @param string $property
 	 * @return mixed $value
 	 */
-	public function __get( $property ) {
+	public function &__get( $property ) {
+
+		if ($this->beanHelper)
+		$toolbox = $this->beanHelper->getToolbox();
+
+		if (!isset($this->properties[$property])) {
+
+			$fieldLink = $property."_id";
+
+			/**
+			 * All this magic can be become very complex quicly. For instance,
+			 * my PHP CLI produced a segfault while testing this code. Turns out that
+			 * if fieldlink equals idfield, scripts tend to recusrively load beans and
+			 * instead of giving a clue they simply crash and burn isnt that nice?
+			 */
+			if (isset($this->$fieldLink) && $fieldLink != $this->getMeta('sys.idfield')) {
+				$this->setMeta("tainted",true);
+				$type =  $toolbox->getWriter()->getAlias($property);
+				$targetType = $this->properties[$fieldLink];
+				$bean =  $toolbox->getRedBean()->load($type,$targetType);
+				return $bean;
+			}
+
+			if (strpos($property,'own')===0) {
+				$firstCharCode = ord(substr($property,3,1));
+				if ($firstCharCode>=65 && $firstCharCode<=90) {
+					$type = (strtolower(str_replace('own','',$property)));
+					$myFieldLink = $this->getMeta('type')."_id";
+					$beans = $toolbox->getRedBean()->find($type,array(),array(" $myFieldLink = ? ",array($this->getID())));
+					$this->properties[$property] = $beans;
+					$this->setMeta("sys.shadow.".$property,$beans);
+					$this->setMeta("tainted",true);
+					return $this->properties[$property];
+				}
+			}
+
+			if (strpos($property,'shared')===0) {
+				$firstCharCode = ord(substr($property,6,1));
+				if ($firstCharCode>=65 && $firstCharCode<=90) {
+					$type = (strtolower(str_replace('shared','',$property)));
+					$keys = $toolbox->getRedBean()->getAssociationManager()->related($this,$type);
+					if (!count($keys)) $beans = array(); else
+					$beans = $toolbox->getRedBean()->batch($type,$keys);
+					$this->properties[$property] = $beans;
+					$this->setMeta("sys.shadow.".$property,$beans);
+					$this->setMeta("tainted",true);
+					return $this->properties[$property];
+				}
+			}
+
+			$this->properties[$property] = null;
+
+		}
 
 
-		if (!isset($this->properties[$property]))  return NULL;
 		return $this->properties[$property];
 	}
 
@@ -117,7 +265,7 @@ class RedBean_OODBBean implements IteratorAggregate {
 
 	public function __set( $property, $value ) {
 
-
+		$this->__get($property);
 		$this->setMeta("tainted",true);
 
 		if ($value===false) {
@@ -145,17 +293,7 @@ class RedBean_OODBBean implements IteratorAggregate {
 	 * @return mixed $value
 	 */
 	public function getMeta( $path, $default = NULL) {
-		$ref = $this->__info;
-		$parts = explode(".", $path);
-		foreach($parts as $part) {
-			if (isset($ref[$part])) {
-				$ref = $ref[$part];
-			}
-			else {
-				return $default;
-			}
-		}
-		return $ref;
+		return (isset($this->__info[$path])) ? $this->__info[$path] : $default;
 	}
 
 	/**
@@ -167,16 +305,7 @@ class RedBean_OODBBean implements IteratorAggregate {
 	 * @param mixed $value
 	 */
 	public function setMeta( $path, $value ) {
-		$ref = &$this->__info;
-		$parts = explode(".", $path);
-		$lastpart = array_pop( $parts );
-		foreach($parts as $part) {
-			if (!isset($ref[$part])) {
-				$ref[$part] = array();
-			}
-			$ref = &$ref[$part];
-		}
-		$ref[$lastpart] = $value;
+		$this->__info[$path] = $value;
 	}
 
 	/**
@@ -199,6 +328,7 @@ class RedBean_OODBBean implements IteratorAggregate {
 	 */
 	public function __sleep() {
 		//return the public stuff
+		$this->setMeta("sys.oodb",null);
 		return array('properties','__info');
 	}
 
@@ -221,10 +351,92 @@ class RedBean_OODBBean implements IteratorAggregate {
 		return call_user_func_array(array($this->__info["model"],$method), $args);
 	}
 
+	/**
+	 * Implementation of __toString Method
+	 * Routes call to Model.
+	 * @return string $string
+	 */
 	public function __toString() {
-		return $this->__call('__toString',array());
+		$string = $this->__call('__toString',array());
+		if ($string === null) {
+			return json_encode($this->properties);
+		}
+		else {
+			return $string;
+		}
+	}
+
+	/**
+	 * Implementation of Array Access Interface, you can access bean objects
+	 * like an array.
+	 * Call gets routed to __set.
+	 *
+	 * @param  mixed $offset offset string
+	 * @param  mixed $value value
+	 *
+	 * @return void
+	 */
+	public function offsetSet($offset, $value) {
+        $this->__set($offset, $value);
+    }
+
+	/**
+	 * Implementation of Array Access Interface, you can access bean objects
+	 * like an array.
+	 *
+	 * @param  mixed $offset property
+	 *
+	 * @return
+	 */
+    public function offsetExists($offset) {
+        return isset($this->properties[$offset]);
+    }
+
+	/**
+	 * Implementation of Array Access Interface, you can access bean objects
+	 * like an array.
+	 * Unsets a value from the array/bean.
+	 *
+	 * @param  mixed $offset property
+	 *
+	 * @return
+	 */
+    public function offsetUnset($offset) {
+        unset($this->properties[$offset]);
+    }
+
+	/**
+	 * Implementation of Array Access Interface, you can access bean objects
+	 * like an array.
+	 * Returns value of a property.
+	 *
+	 * @param  mixed $offset property
+	 *
+	 * @return
+	 */
+    public function offsetGet($offset) {
+        return $this->__get($offset);
+    }
+
+
+	/**
+	 * Chainable method to cast a certain ID to a bean; for instance:
+	 * $person = $club->fetchAs('person')->member;
+	 * This will load a bean of type person using member_id as ID.
+	 * 
+	 * @param  string $type preferred fetch type
+	 *
+	 * @return RedBean_OODBBean
+	 */
+	public function fetchAs($type) {
+		self::$fetchType = $type;
+		return $this;
 	}
 
 
+
+
+
 }
+
 

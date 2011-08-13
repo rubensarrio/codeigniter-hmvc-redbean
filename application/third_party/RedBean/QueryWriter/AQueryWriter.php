@@ -1,7 +1,8 @@
 <?php
 /**
  * RedBean Abstract Query Writer
- * @file 		RedBean/QueryWriter/AQueryWriter.php
+ *
+ * @file 			RedBean/QueryWriter/AQueryWriter.php
  * @description
  *					Represents an abstract Database to RedBean
  *					To write a driver for a different database for RedBean
@@ -17,8 +18,14 @@
  * with this source code in the file license.txt.
  */
 
-abstract class RedBean_AQueryWriter {
+abstract class RedBean_QueryWriter_AQueryWriter {
 
+
+	/**
+	 * @var array
+	 * FK Cache
+	 */
+	protected $fcache = array();
 
 	/**
 	 *
@@ -47,20 +54,30 @@ abstract class RedBean_AQueryWriter {
 	 * Indicates the field name to be used for primary keys;
 	 * default is 'id'.
 	 */
-  protected $idfield = "id";
+	protected $idfield = "id";
 
 	/**
 	 * @var string
 	 * default value to for blank field (passed to PK for auto-increment)
 	 */
-  protected $defaultValue = 'NULL';
-  
+	protected $defaultValue = 'NULL';
+
 	/**
 	 * @var string
 	 * character to escape keyword table/column names
 	 */
-  protected $quoteCharacter = '';
-	
+	protected $quoteCharacter = '';
+
+
+	/**
+	 * Constructor
+	 * Sets the default Bean Formatter, use parent::__construct() in
+	 * subclass to achieve this.
+	 */
+	public function __construct() {
+		$this->tableFormatter = new RedBean_DefaultBeanFormatter();
+	}
+
 	/**
 	 * Do everything that needs to be done to format a table name.
 	 *
@@ -95,10 +112,10 @@ abstract class RedBean_AQueryWriter {
 	 *
 	 * @return string sql
 	 */
-  protected function getInsertSuffix ($table) {
-    return "";
-  }
-	
+  	protected function getInsertSuffix ($table) {
+    	return "";
+  	}
+
 	/**
 	 * Returns the string identifying a table for a given type.
 	 *
@@ -107,17 +124,30 @@ abstract class RedBean_AQueryWriter {
 	 * @return string $table
 	 */
 	public function getFormattedTableName($type) {
-		if ($this->tableFormatter) return $this->tableFormatter->formatBeanTable($type);
-		return $type;
+		return $this->tableFormatter->formatBeanTable($type);
 	}
 
 	/**
-	 * Sets the Bean Formatter to be used to handle
-	 * custom/advanced DB<->Bean
-	 * Mappings. This method has no return value.
+	 * Returns an alias type based on a reference type. If the writer has
+	 * a tableformatter this method will pass the type to the writer's alias
+	 * function to get the alias of the type back.
 	 *
-	 * @param RedBean_IBeanFormatter $beanFormatter the bean formatter
-	 * 
+	 * @param  string $type type you want an alias for
+	 *
+	 * @return
+	 */
+	public function getAlias($type) {
+		return $this->tableFormatter->getAlias($type);
+	}
+
+
+	/**
+	 * Sets the new bean formatter. A bean formatter is an instance
+	 * of the class BeanFormatter that determines how a bean should be represented
+	 * in the database.
+	 *
+	 * @param RedBean_IBeanFormatter $beanFormatter bean format
+	 *
 	 * @return void
 	 */
 	public function setBeanFormatter( RedBean_IBeanFormatter $beanFormatter ) {
@@ -145,9 +175,8 @@ abstract class RedBean_AQueryWriter {
 	 */
 	public function getIDField( $type ) {
 		$nArgs = func_num_args();
-		if ($nArgs>1) $safe = func_get_arg(1); else $safe = false;
-		if ($this->tableFormatter) return $this->tableFormatter->formatBeanID($type);
-		return $safe ? $this->safeColumn($this->idfield) : $this->idfield;
+		if ($nArgs>1) throw new Exception("Deprecated parameter SAFE, use safeColumn() instead.");
+		return $this->tableFormatter->formatBeanID($type);
 	}
 	
 	/**
@@ -157,11 +186,10 @@ abstract class RedBean_AQueryWriter {
 	 *
 	 * @return string $table escaped string
 	 */
-	public function check($table) {
-		// if (strpos($table, '`')!==false || strpos($table, '"')!==false) { // maybe this?
+	protected function check($table) {
 		if ($this->quoteCharacter && strpos($table, $this->quoteCharacter)!==false) {
 		  throw new Redbean_Exception_Security("Illegal chars in table name");
-    }
+	    }
 		return $this->adapter->escape($table);
 	}
 	
@@ -172,20 +200,25 @@ abstract class RedBean_AQueryWriter {
 	 *
 	 * @return string $keywordSafeString escaped keyword
 	 */
-	public function noKW($str) {
+	protected function noKW($str) {
 		$q = $this->quoteCharacter;
 		return $q.$str.$q;
 	}
 	
 	/**
-	 * Adds a column of a given type to a table.
+	 * This method adds a column to a table.
+	 * This methods accepts a type and infers the corresponding table name.
 	 *
-	 * @param string  $table  name of the table
+	 * @param string  $type   name of the table
 	 * @param string  $column name of the column
-	 * @param integer $type   type
+	 * @param integer $field  data type for field
+	 *
+	 * @return void
 	 *
 	 */
-	public function addColumn( $table, $column, $type ) {
+	public function addColumn( $type, $column, $field ) {
+		$table = $type;
+		$type = $field;
 		$table = $this->safeTable($table);
 		$column = $this->safeColumn($column);
 		$type = $this->getFieldType($type);
@@ -194,24 +227,41 @@ abstract class RedBean_AQueryWriter {
 	}
 	
 	/**
-	 * Update a record using a series of update values.
+	 * This method updates (or inserts) a record, it takes
+	 * a table name, a list of update values ( $field => $value ) and an
+	 * primary key ID (optional). If no primary key ID is provided, an
+	 * INSERT will take place.
+	 * Returns the new ID.
+	 * This methods accepts a type and infers the corresponding table name.
 	 *
-	 * @param string  $table		  table
-	 * @param array   $updatevalues update values
-	 * @param integer $id			  primary key for record
+	 * @param string  $type         name of the table to update
+	 * @param array   $updatevalues list of update values
+	 * @param integer $id			optional primary key ID value
+	 *
+	 * @return integer $id the primary key ID value of the new record
 	 */
-	public function updateRecord( $table, $updatevalues, $id) {
-		$idfield = $this->getIDField($table, true);
+	public function updateRecord( $type, $updatevalues, $id=null) {
+		$table = $type;
+		if (!$id) {
+			$insertcolumns =  $insertvalues = array();
+			foreach($updatevalues as $pair) {
+				$insertcolumns[] = $pair["property"];
+				$insertvalues[] = $pair["value"];
+			}
+			return $this->insertRecord($table,$insertcolumns,array($insertvalues));
+		}
+		if ($id && !count($updatevalues)) return $id;
+		$idfield = $this->safeColumn($this->getIDField($table));
 		$table = $this->safeTable($table);
 		$sql = "UPDATE $table SET ";
 		$p = $v = array();
 		foreach($updatevalues as $uv) {
 			$p[] = " {$this->safeColumn($uv["property"])} = ? ";
-			//$v[]=strval( $uv["value"] );
 			$v[]=$uv["value"];
 		}
 		$sql .= implode(",", $p ) ." WHERE $idfield = ".intval($id);
 		$this->adapter->exec( $sql, $v );
+		return $id;
 	}
 
 	/**
@@ -224,9 +274,9 @@ abstract class RedBean_AQueryWriter {
 	 *
 	 * @return integer $insertid	  insert id from driver, new record id
 	 */
-	public function insertRecord( $table, $insertcolumns, $insertvalues ) {
+	protected function insertRecord( $table, $insertcolumns, $insertvalues ) {
 		$default = $this->defaultValue;
-		$idfield = $this->getIDField($table, true);
+		$idfield = $this->safeColumn($this->getIDField($table));
 		$suffix = $this->getInsertSuffix($table);
 		$table = $this->safeTable($table);
 		if (count($insertvalues)>0 && is_array($insertvalues[0]) && count($insertvalues[0])>0) {
@@ -235,7 +285,6 @@ abstract class RedBean_AQueryWriter {
 			}
 			$insertSQL = "INSERT INTO $table ( $idfield, ".implode(",",$insertcolumns)." ) VALUES ";
 			$insertSQL .= "( $default, ". implode(",",array_fill(0,count($insertcolumns)," ? "))." ) $suffix";
-			$first=true;
 			
 			foreach($insertvalues as $i=>$insertvalue) {
 				$ids[] = $this->adapter->getCell( $insertSQL, $insertvalue, $i );
@@ -246,114 +295,315 @@ abstract class RedBean_AQueryWriter {
 			$result = $this->adapter->getCell( "INSERT INTO $table ($idfield) VALUES($default) $suffix");
 		}
 		if ($suffix) return $result;
-	  $last_id = $this->adapter->getInsertID();
+	   $last_id = $this->adapter->getInsertID();
 		return ($this->adapter->getErrorMsg()=="" ?  $last_id : 0);
 	}
 	
+	
 	/**
-	 * Selects a record based on type and id.
+	 * This selects a record. You provide a
+	 * collection of conditions using the following format:
+	 * array( $field1 => array($possibleValue1, $possibleValue2,... $possibleValueN ),
+	 * ...$fieldN=>array(...));
+	 * Also, additional SQL can be provided. This SQL snippet will be appended to the
+	 * query string. If the $delete parameter is set to TRUE instead of selecting the
+	 * records they will be deleted.
+	 * This methods accepts a type and infers the corresponding table name.
 	 *
-	 * @param string  $type type
-	 * @param integer $id   id
+	 * @throws Exception
+	 * @param string  $type    type of bean to select records from
+	 * @param array   $cond    conditions using the specified format
+	 * @param string  $asql    additional sql
+	 * @param boolean $delete  IF TRUE delete records (optional)
+	 * @param boolean $inverse IF TRUE inverse the selection (optional)
 	 *
-	 * @return array $row	resulting row or NULL if none has been found
+	 * @return array $records selected records
 	 */
-	public function selectRecord($type, $ids) {
-		$idfield = $this->getIDField($type, true);
-		$table = $this->safeTable($type);
-		$sql = "SELECT * FROM $table WHERE $idfield IN ( ".implode(',', array_fill(0, count($ids), " ? "))." )";
-		$rows = $this->adapter->get($sql,$ids);
-		return ($rows && is_array($rows) && count($rows)>0) ? $rows : NULL;
-	}
-
-	/**
-	 * Deletes a record based on a table, column, value and operator
-	 *
-	 * @param string  $table  table
-	 * @param integer $value  primary key id
-	 *
-	 * @todo validate arguments for security
-	 */
-	public function deleteRecord($table, $value) {
-		$column = $this->getIDField($table, true);
-		$table = $this->safeTable($table);
+	public function selectRecord( $type, $conditions, $addSql=null, $delete=null, $inverse=false ) {
+		if (!is_array($conditions)) throw new Exception("Conditions must be an array");
 		
-		$this->adapter->exec("DELETE FROM $table WHERE $column = ? ",array(strval($value)));
-	}
-	
-	/**
-	 * Selects a record using a criterium.
-	 * Specify the select-column, the target table, the criterium column
-	 * and the criterium value. This method scans the specified table for
-	 * records having a criterium column with a value that matches the
-	 * specified value. For each record the select-column value will be
-	 * returned, most likely this will be a primary key column like ID.
-	 * If $withUnion equals true the method will also return the $column
-	 * values for each entry that has a matching select-column. This is
-	 * handy for cross-link tables like page_page.
-	 *
-	 * @param string $select the column to be selected
-	 * @param string $table  the table to select from
-	 * @param string $column the column to compare the criteria value against
-	 * @param string $value  the criterium value to match against
-	 * @param boolean $union with union (default is false)
-	 *
-	 * @return array $array selected column with values
-	 */
-	public function selectByCrit( $select, $table, $column, $value, $withUnion=false ) {
-		$table = $this->safeTable($table);
-		$select = $this->safeColumn($select);
-		$column = $this->safeColumn($column);
-		$value = $this->adapter->escape($value);
-		$sql = "SELECT $select FROM $table WHERE $column = ? ";
-		$values = array($value);
-		if ($withUnion) {
-			$sql .= " UNION SELECT $column FROM $table WHERE $select = ? ";
-			$values[] = $value;
+		$table = $this->safeTable($type);
+		$sqlConditions = array();
+		$bindings=array();
+		foreach($conditions as $column=>$values) {
+			$sql = $this->safeColumn($column);
+			$sql .= " ".($inverse ? " NOT ":"")." IN ( ";
+			$sql .= implode(",",array_fill(0,count($values),"?")).") ";
+			$sqlConditions[] = $sql;
+			if (!is_array($values)) $values = array($values);
+			foreach($values as $k=>$v) {
+				$values[$k]=strval($v);
+			}
+			$bindings = array_merge($bindings,$values);
 		}
-		return $this->adapter->getCol($sql,$values);
-	}
-	
-	/**
-	 * This method takes an array with key=>value pairs.
-	 * Each record that has a complete match with the array is
-	 * deleted from the table.
-	 *
-	 * @param string $table table
-	 * @param array  $crits criteria
-	 *
-	 * @return integer $affectedRows num. of affected rows.
-	 */
-	public function deleteByCrit( $table, $crits ) {
-		$table = $this->safeTable($table);
-		$values = array();
-		foreach($crits as $key=>$val) {
-			$values[] = $this->adapter->escape($val);
-			$conditions[] = $this->safeColumn($key) ."= ? ";
+		//$addSql can be either just a string or array($sql, $bindings)
+		if (is_array($addSql)) {
+			if (count($addSql)>1) {
+				$bindings = array_merge($bindings,$addSql[1]);
+			}
+			else {
+				$bindings = array();
+			}
+			$addSql = $addSql[0];
+
 		}
-		$sql = "DELETE FROM $table WHERE ".implode(" AND ", $conditions);
-		return (int) $this->adapter->exec($sql, $values);
+		$sql="";
+		if (count($sqlConditions)>0) {
+			$sql = implode(" AND ",$sqlConditions);
+			$sql = " WHERE ( $sql ) ";
+			if ($addSql) $sql .= " AND $addSql ";
+		}
+		elseif ($addSql) {
+			$sql = " WHERE ".$addSql;
+		}
+		$sql = (($delete) ? "DELETE FROM " : "SELECT * FROM ").$table.$sql;
+		$rows = $this->adapter->get($sql,$bindings);
+		return $rows;
 	}
 
 	/**
-	 * Returns a snippet of SQL to filter records using SQL and a list of
-	 * keys.
+	 * This creates a view with name $viewID and
+	 * based on the reference type. A list of types
+	 * will be provided in the second argument. This method should create
+	 * a view by joining each type in the list (using LEFT OUTER JOINS) to the
+	 * reference type. If a type is mentioned multiple times it does not need
+	 * to be re-joined but the next type should be joined to that type instead.
+	 * This methods accepts a type and infers the corresponding table name.
 	 *
-	 * @param string  $idfield ID Field to use for selecting primary key
-	 * @param array   $keys		List of keys to use for filtering
-	 * @param string  $sql		SQL to append, if any
-	 * @param boolean $inverse Whether you want to inverse the selection
+	 * @param  string $referenceType reference type
+	 * @param  array  $constraints   list of types
+	 * @param  string $viewID		 name of the new view
 	 *
-	 * @return string $snippet SQL Snippet crafted by function
+	 * @return boolean $success whether a view has been generated
 	 */
-	public function getSQLSnippetFilter( $idfield, $keys, $sql=null, $inverse=false ) {
-		if (!$sql) $sql=" 1 ";
-		if (!$inverse && count($keys)===0) return " 0 ";
-		$idfield = $this->noKW($idfield);
-		$sqlInverse = ($inverse) ? "NOT" : "";
-		$sqlKeyFilter = ($keys) ? " $idfield $sqlInverse IN (".implode(",",$keys).") AND " : " ";
-		$sqlSnippet = $sqlKeyFilter . $sql;
-		return $sqlSnippet;
+	public function createView($referenceType, $constraints, $viewID) {
+
+		$referenceTable = $referenceType;
+		$viewID = $this->safeTable($viewID,true);
+		$safeReferenceTable = $this->safeTable($referenceTable);
+
+		try{ $this->adapter->exec("DROP VIEW $viewID"); }catch(Exception $e){}
+
+		$columns = array_keys( $this->getColumns( $referenceTable ) );
+
+		$referenceTable = ($referenceTable);
+		$joins = array();
+		foreach($constraints as $table=>$constraint) {
+			$safeTable = $this->safeTable($table);
+			$addedColumns = array_keys($this->getColumns($table));
+			foreach($addedColumns as $addedColumn) {
+				$newColName = $addedColumn."_of_".$table;
+				$newcolumns[] = $this->safeTable($table).".".$this->safeColumn($addedColumn) . " AS ".$this->safeColumn($newColName);
+			}
+			if (count($constraint)!==2) throw Exception("Invalid VIEW CONSTRAINT");
+			$referenceColumn = $constraint[0];
+			$compareColumn = $constraint[1];
+			$join = $referenceColumn." = ".$compareColumn;
+			$joins[] = " LEFT JOIN $safeTable ON $join ";
+		}
+
+		$joins = implode(" ", $joins);
+		foreach($columns as $k=>$column) {
+			$columns[$k]=$safeReferenceTable.".".$this->safeColumn($column);
+		}
+		$columns = implode("\n,",array_merge($newcolumns,$columns));
+		$sql = "CREATE VIEW $viewID AS SELECT $columns FROM $safeReferenceTable $joins ";
+
+		$this->adapter->exec($sql);
+		return true;
 	}
+
+	/**
+	 * This method removes all beans of a certain type.
+	 * This methods accepts a type and infers the corresponding table name.
+	 *
+	 * @param  string $type bean type
+	 *
+	 * @return void
+	 */
+	public function wipe($type) {
+		$table = $type;
+		$table = $this->safeTable($table);
+		$sql = "TRUNCATE $table ";
+		$this->adapter->exec($sql);
+	}
+
+	/**
+	 * Counts rows in a table.
+	 *
+	 * @param string $beanType
+	 *
+	 * @return integer $numRowsFound
+	 */
+	public function count($beanType) {
+		$table = $this->safeTable($beanType);
+		$sql = "SELECT count(*) FROM $table ";
+		return (int) $this->adapter->getCell($sql);
+	}
+
+	/**
+	 * This method should add an index to a type and field with name
+	 * $name.
+	 * This methods accepts a type and infers the corresponding table name.
+	 *
+	 * @param  $type   type to add index to
+	 * @param  $name   name of the new index
+	 * @param  $column field to index
+	 *
+	 * @return void
+	 */
+	public function addIndex($type, $name, $column) {
+		$table = $type;
+		$table = $this->safeTable($table);
+		$name = preg_replace("/\W/","",$name);
+		$column = $this->safeColumn($column);
+		try{ $this->adapter->exec("CREATE INDEX $name ON $table ($column) "); }catch(Exception $e){}
+	}
+
+	/**
+	 * This is a utility service method publicly available.
+	 * It allows you to check whether you can safely treat an certain value as an integer by
+	 * comparing an int-valled string representation with a default string casted string representation and
+	 * a ctype-digit check. It does not take into account numerical limitations (X-bit INT), just that it
+	 * can be treated like an INT. This is useful for binding parameters to query statements like
+	 * Query Writers and drivers can do.
+	 *
+	 * @static
+	 *
+	 * @param  string $value string representation of a certain value
+	 *
+	 * @return boolean $value boolean result of analysis
+	 */
+	public static function canBeTreatedAsInt( $value ) {
+		return (boolean) (ctype_digit(strval($value)) && strval($value)===strval(intval($value)));
+	}
+
+
+	/**
+	 * This method adds a foreign key from type and field to
+	 * target type and target field.
+	 * The foreign key is created without an action. On delete/update
+	 * no action will be triggered. The FK is only used to allow database
+	 * tools to generate pretty diagrams and to make it easy to add actions
+	 * later on.
+	 * This methods accepts a type and infers the corresponding table name.
+	 *
+	 *
+	 * @param  string $type	       type that will have a foreign key field
+	 * @param  string $targetType  points to this type
+	 * @param  string $field       field that contains the foreign key value
+	 * @param  string $targetField field where the fk points to
+	 *
+	 * @return void
+	 */
+	public function addFK( $type, $targetType, $field, $targetField) {
+		$table = $this->safeTable($type);
+		$tableNoQ = $this->safeTable($type,true);
+		$targetTable = $this->safeTable($targetType);
+		$column = $this->safeColumn($field);
+		$targetColumn  = $this->safeColumn($targetField);
+		$db = $this->adapter->getCell("select database()");
+		$fks =  $this->adapter->getCell("
+			SELECT count(*)
+			FROM information_schema.KEY_COLUMN_USAGE
+			WHERE TABLE_SCHEMA ='$db' AND TABLE_NAME = '$tableNoQ'  AND
+			CONSTRAINT_NAME <>'PRIMARY' AND REFERENCED_TABLE_NAME is not null
+		");
+
+		if ($fks==0) {
+			try{
+				$this->adapter->exec("ALTER TABLE  $table
+				ADD FOREIGN KEY (  $column ) REFERENCES  $targetTable (
+				$targetColumn) ON DELETE NO ACTION ON UPDATE NO ACTION ;");
+			}
+			catch(Exception $e) {
+				
+			}
+		}
+
+	}
+
+	/**
+	 * Returns the format for link tables.
+	 * Given an array containing two type names this method returns the
+	 * name of the link table to be used to store and retrieve
+	 * association records.
+	 *
+	 * @param  array $types two types array($type1,$type2)
+	 *
+	 * @return string $linktable name of the link table
+	 */
+	public function getAssocTableFormat($types) {
+		sort($types);
+		return ( implode("_", $types) );
+	}
+
+
+	/**
+	 * Adds a constraint. If one of the beans gets trashed
+	 * the other, related bean should be removed as well.
+	 *
+	 * @param RedBean_OODBBean $bean1      first bean
+	 * @param RedBean_OODBBean $bean2      second bean
+	 * @param bool 			   $dontCache  by default we use a cache, TRUE = NO CACHING (optional)
+	 *
+	 * @return void
+	 */
+	public function addConstraint( RedBean_OODBBean $bean1, RedBean_OODBBean $bean2, $dontCache = false ) {
+
+		$table1 = $bean1->getMeta("type");
+		$table2 = $bean2->getMeta("type");
+		$writer = $this;
+		$adapter = $this->adapter;
+		$table = $this->getAssocTableFormat( array( $table1,$table2) );
+		$idfield1 = $writer->getIDField($bean1->getMeta("type"));
+		$idfield2 = $writer->getIDField($bean2->getMeta("type"));
+
+		$property1 = $bean1->getMeta("type") . "_id";
+		$property2 = $bean2->getMeta("type") . "_id";
+		if ($property1==$property2) $property2 = $bean2->getMeta("type")."2_id";
+
+		$table = $adapter->escape($table);
+		$table1 = $adapter->escape($table1);
+		$table2 = $adapter->escape($table2);
+		$property1 = $adapter->escape($property1);
+		$property2 = $adapter->escape($property2);
+
+		//In Cache? Then we dont need to bother
+		$fkCode = "fk".md5($table.$property1.$property2);
+		if (isset($this->fkcache[$fkCode])) return false;
+		//Dispatch to right method
+
+		try {
+			return $this->constrain($table, $table1, $table2, $property1, $property2, $dontCache);
+		}
+		catch(RedBean_Exception_SQL $e) {
+			if (!$writer->sqlStateIn($e->getSQLState(),
+			array(
+			RedBean_QueryWriter::C_SQLSTATE_NO_SUCH_COLUMN,
+			RedBean_QueryWriter::C_SQLSTATE_NO_SUCH_TABLE)
+			)) throw $e;
+		}
+
+		return false;
+
+	}
+
+	/**
+	 * Abstract method. Needs to be implemented by 'fluid' driver.
+	 * Add the constraints for a specific database driver.
+	 * @abstract
+	 *
+	 * @param string			  $table     table
+	 * @param string			  $table1    table1
+	 * @param string			  $table2    table2
+	 * @param string			  $property1 property1
+	 * @param string			  $property2 property2
+	 * @param boolean			  $dontCache want to have cache?
+	 *
+	 * @return boolean $succes whether the constraint has been applied
+	 */
+	abstract protected function constrain($table, $table1, $table2, $p1, $p2, $cache);
+
 
 }

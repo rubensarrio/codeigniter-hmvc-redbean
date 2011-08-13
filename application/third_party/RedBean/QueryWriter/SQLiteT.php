@@ -1,6 +1,27 @@
 <?php
+/**
+ * RedBean SQLiteWriter with support for SQLite types
+ *
+ * @file				RedBean/QueryWriter/SQLiteT.php
+ * @description			Represents a SQLite Database to RedBean
+ *						To write a driver for a different database for RedBean
+ *						you should only have to change this file.
+ * @author				Gabor de Mooij
+ * @license				BSD
+ */
+class RedBean_QueryWriter_SQLiteT extends RedBean_QueryWriter_AQueryWriter implements RedBean_QueryWriter {
+	/**
+	 *
+	 * @var RedBean_Adapter_DBAdapter
+	 * Holds database adapter
+	 */
+	protected $adapter;
 
-class RedBean_QueryWriter_SQLiteT extends RedBean_QueryWriter_SQLite {
+	/**
+	 * @var string
+	 * character to escape keyword table/column names
+	 */
+  	protected $quoteCharacter = '`';
 
 	/**
 	 * Here we describe the datatypes that RedBean
@@ -66,6 +87,27 @@ class RedBean_QueryWriter_SQLiteT extends RedBean_QueryWriter_SQLite {
 
 
 	/**
+	 * Constructor
+	 * The Query Writer Constructor also sets up the database
+	 *
+	 * @param RedBean_Adapter_DBAdapter $adapter adapter
+	 */
+	public function __construct( RedBean_Adapter $adapter ) {
+		$this->adapter = $adapter;
+		parent::__construct($adapter);
+	}
+
+	/**
+	 * This method returns the datatype to be used for primary key IDS and
+	 * foreign keys. Returns one if the data type constants.
+	 *
+	 * @return integer $const data type to be used for IDS.
+	 */
+	public function getTypeForID() {
+		return self::C_DATATYPE_INTEGER;
+	}
+
+	/**
 	 * Returns the MySQL Column Type Code (integer) that corresponds
 	 * to the given value type.
 	 *
@@ -75,14 +117,16 @@ class RedBean_QueryWriter_SQLiteT extends RedBean_QueryWriter_SQLite {
 	 */
 	public function scanType( $value ) {
 
-
-		if (is_numeric($value) && (intval($value)==$value)) return self::C_DATATYPE_INTEGER;
-		if (is_numeric($value)
+		if ($value===null) return self::C_DATATYPE_INTEGER; //for fks
+		if (is_numeric($value) && (intval($value)==$value) && $value<2147483648) return self::C_DATATYPE_INTEGER;
+		if ((is_numeric($value) && $value < 2147483648)
 				  || preg_match("/\d\d\d\d\-\d\d\-\d\d/",$value)
 				  || preg_match("/\d\d\d\d\-\d\d\-\d\d\s\d\d:\d\d:\d\d/",$value)
 		) {
 			return self::C_DATATYPE_NUMERIC;
 		}
+		
+		
 		return self::C_DATATYPE_TEXT;
 	}
 
@@ -128,13 +172,18 @@ class RedBean_QueryWriter_SQLiteT extends RedBean_QueryWriter_SQLite {
 	}
 
 	/**
-	 * Change (Widen) the column to the give type.
+	 * This method upgrades the column to the specified data type.
+	 * This methods accepts a type and infers the corresponding table name.
 	 *
-	 * @param string  $table  table to widen
-	 * @param string  $column column to widen
-	 * @param integer $type   new column type
+	 * @param string  $type       type / table that needs to be adjusted
+	 * @param string  $column     column that needs to be altered
+	 * @param integer $datatype   target data type
+	 *
+	 * @return void
 	 */
-	public function widenColumn( $table, $column, $type ) {
+	public function widenColumn( $type, $column, $datatype ) {
+		$table = $type;
+		$type = $datatype;
 		$table = $this->getFormattedTableName($table);
 		$idfield = $this->idfield;
 		$column = $this->check($column);
@@ -167,6 +216,171 @@ class RedBean_QueryWriter_SQLiteT extends RedBean_QueryWriter_SQLite {
 		}
 
 
+	}
+
+
+	/**
+	 * Returns all tables in the database
+	 *
+	 * @return array $tables tables
+	 */
+	public function getTables() {
+		return $this->adapter->getCol( "SELECT name FROM sqlite_master
+			WHERE type='table' AND name!='sqlite_sequence';" );
+	}
+
+	/**
+	 * Creates an empty, column-less table for a bean.
+	 *
+	 * @param string $table table
+	 */
+	public function createTable( $table ) {
+		$idfield = $this->safeColumn($this->getIDfield($table));
+		$table = $this->safeTable($table);
+		$sql = "
+                     CREATE TABLE $table ( $idfield INTEGER PRIMARY KEY AUTOINCREMENT )
+				  ";
+		$this->adapter->exec( $sql );
+	}
+
+	/**
+	 * Returns an array containing the column names of the specified table.
+	 *
+	 * @param string $table table
+	 *
+	 * @return array $columns columns
+	 */
+	public function getColumns( $table ) {
+		$table = $this->safeTable($table, true);
+		$columnsRaw = $this->adapter->get("PRAGMA table_info('$table')");
+		$columns = array();
+		foreach($columnsRaw as $r) {
+			$columns[$r["name"]]=$r["type"];
+		}
+		return $columns;
+	}
+
+	
+
+
+	
+	/**
+	 * Adds a Unique index constrain to the table.
+	 *
+	 * @param string $table   table
+	 * @param string $column1 first column
+	 * @param string $column2 second column
+	 *
+	 * @return void
+	 */
+	public function addUniqueIndex( $table,$columns ) {
+		$table = $this->safeTable($table);
+		$name = "UQ_".sha1(implode(',',$columns));
+		$sql = "CREATE UNIQUE INDEX IF NOT EXISTS $name ON $table (".implode(",",$columns).")";
+		$this->adapter->exec($sql);
+	}
+
+	/**
+	 * Given an Database Specific SQLState and a list of QueryWriter
+	 * Standard SQL States this function converts the raw SQL state to a
+	 * database agnostic ANSI-92 SQL states and checks if the given state
+	 * is in the list of agnostic states.
+	 *
+	 * @param string $state state
+	 * @param array  $list  list of states
+	 *
+	 * @return boolean $isInArray whether state is in list
+	 */
+	public function sqlStateIn($state, $list) {
+		$sqlState = "0";
+		if ($state == "HY000") $sqlState = RedBean_QueryWriter::C_SQLSTATE_NO_SUCH_TABLE;
+		if ($state == "23000") $sqlState = RedBean_QueryWriter::C_SQLSTATE_INTEGRITY_CONSTRAINT_VIOLATION;
+		return in_array($sqlState, $list);
+	}
+
+
+
+
+	/**
+	 * Counts rows in a table.
+	 * Uses SQLite optimization for deleting all records (i.e. no WHERE)
+	 *
+	 * @param string $beanType
+	 *
+	 * @return integer $numRowsFound
+	 */
+	public function wipe($type) {
+		$table = $this->safeTable($type);
+		$this->adapter->exec("DELETE FROM $table");
+	}
+
+	/**
+	 * Not implemented for SQLite, uses triggers.
+	 *
+	 *
+	 * @param  string $type        type you want to modify table of
+	 * @param  string $targetType  target type
+	 * @param  string $field       field of the type that needs to get the fk
+	 * @param  string $targetField field where the fk needs to point to
+	 *
+	 * @return bool $success whether an FK has been added
+	 */
+	public function addFK( $type, $targetType, $field, $targetField) {
+		//not supported yet
+	}
+
+
+	/**
+	 * Add the constraints for a specific database driver: SQLite.
+	 * @todo Too many arguments; find a way to solve this in a neater way.
+	 *
+	 * @param string			  $table     table
+	 * @param string			  $table1    table1
+	 * @param string			  $table2    table2
+	 * @param string			  $property1 property1
+	 * @param string			  $property2 property2
+	 * @param boolean			  $dontCache want to have cache?
+	 *
+	 * @return boolean $succes whether the constraint has been applied
+	 */
+	protected  function constrain($table, $table1, $table2, $property1, $property2, $dontCache) {
+		try{
+			$writer = $this;
+
+			$adapter = $this->adapter;
+			$fkCode = "fk".md5($table.$property1.$property2);
+
+			$idfield1 = $writer->getIDField($table1);
+			$idfield2 = $writer->getIDField($table2);
+
+			$table = $writer->getFormattedTableName($table);
+			$table1 = $writer->getFormattedTableName($table1);
+			$table2 = $writer->getFormattedTableName($table2);
+
+
+			$sql1 = "
+				 CREATE TRIGGER IF NOT EXISTS {$fkCode}a
+					BEFORE DELETE ON $table1
+					FOR EACH ROW BEGIN
+						DELETE FROM $table WHERE  $table.$property1 = OLD.$idfield1;
+					END;
+					  ";
+
+			$sql2 = "
+				CREATE TRIGGER IF NOT EXISTS {$fkCode}b
+					BEFORE DELETE ON $table2
+					FOR EACH ROW BEGIN
+						DELETE FROM $table WHERE $table.$property2 = OLD.$idfield2;
+					END;
+
+					  ";
+			$adapter->exec($sql1);
+			$adapter->exec($sql2);
+			return true;
+		}
+		catch(Exception $e){
+			return false;
+		}
 	}
 
 

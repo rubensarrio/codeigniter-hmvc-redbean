@@ -12,7 +12,7 @@
  * This source file is subject to the BSD/GPLv2 License that is bundled
  * with this source code in the file license.txt.
  */
-class RedBean_QueryWriter_PostgreSQL extends RedBean_AQueryWriter implements RedBean_QueryWriter {
+class RedBean_QueryWriter_PostgreSQL extends RedBean_QueryWriter_AQueryWriter implements RedBean_QueryWriter {
 
 	/**
 	 * DATA TYPE
@@ -75,18 +75,28 @@ class RedBean_QueryWriter_PostgreSQL extends RedBean_AQueryWriter implements Red
    * @var string
    * Default Value
    */
-  protected $defaultValue = 'DEFAULT';
+ 	protected $defaultValue = 'DEFAULT';
+
+	/**
+	* This method returns the datatype to be used for primary key IDS and
+	* foreign keys. Returns one if the data type constants.
+	*
+	* @return integer $const data type to be used for IDS.
+	*/
+	public function getTypeForID() {
+		return self::C_DATATYPE_INTEGER;
+	}
 
   /**
    * Returns the insert suffix SQL Snippet
-   * 
+   *
    * @param string $table table
    *
    * @return  string $sql SQL Snippet
    */
   protected function getInsertSuffix($table) {
     return "RETURNING ".$this->getIDField($table);
-  }  
+  }
 
 	/**
 	 * Constructor
@@ -96,6 +106,7 @@ class RedBean_QueryWriter_PostgreSQL extends RedBean_AQueryWriter implements Red
 	 */
 	public function __construct( RedBean_Adapter_DBAdapter $adapter ) {
 		$this->adapter = $adapter;
+		parent::__construct();
 	}
 
 	/**
@@ -145,11 +156,11 @@ where table_schema = 'public'" );
 	 * @return integer $type type code for this value
 	 */
 	public function scanType( $value ) {
-		//echo " \n\n value = $value => ".strval(intval($value))." same? ".($value===strval(intval($value)));
-		if (is_numeric($value)
+		// added value===null  
+		if ($value===null || ($value instanceof RedBean_Driver_PDO_NULL) ||(is_numeric($value)
 				  && floor($value)==$value
 				  && $value < 2147483648
-				  && $value > -2147483648) {
+				  && $value > -2147483648)) {
 			return self::C_DATATYPE_INTEGER;
 		}
 		elseif(is_numeric($value)) {
@@ -172,13 +183,18 @@ where table_schema = 'public'" );
 	}
 
 	/**
-	 * Change (Widen) the column to the give type.
+	 * This method upgrades the column to the specified data type.
+	 * This methods accepts a type and infers the corresponding table name.
 	 *
-	 * @param string  $table  table to widen
-	 * @param string  $column column to widen
-	 * @param integer $type   new column type
+	 * @param string  $type       type / table that needs to be adjusted
+	 * @param string  $column     column that needs to be altered
+	 * @param integer $datatype   target data type
+	 *
+	 * @return void
 	 */
-	public function widenColumn( $table, $column, $type ) {
+	public function widenColumn( $type, $column, $datatype ) {
+		$table = $type;
+		$type = $datatype;
 		$table = $this->safeTable($table);
 		$column = $this->safeColumn($column);
 		$newtype = $this->typeno_sqltype[$type];
@@ -256,11 +272,6 @@ where table_schema = 'public'" );
 									AND t.relname = '$table'
 								ORDER BY  t.relname,  i.relname;");
 
-		/*
-		 *
-		 * ALTER TABLE testje ADD CONSTRAINT blabla UNIQUE (blaa, blaa2);
-		*/
-
 		$name = "UQ_".sha1($table.implode(',',$columns));
 		if ($r) {
 			foreach($r as $i) {
@@ -269,12 +280,8 @@ where table_schema = 'public'" );
 				}
 			}
 		}
-
 		$sql = "ALTER TABLE \"$table\"
                 ADD CONSTRAINT $name UNIQUE (".implode(",",$columns).")";
-
-
-
 		$this->adapter->exec($sql);
 	}
 
@@ -294,6 +301,8 @@ where table_schema = 'public'" );
 		$sqlState = "0";
 		if ($state == "42P01") $sqlState = RedBean_QueryWriter::C_SQLSTATE_NO_SUCH_TABLE;
 		if ($state == "42703") $sqlState = RedBean_QueryWriter::C_SQLSTATE_NO_SUCH_COLUMN;
+		if ($state == "23505") $sqlState = RedBean_QueryWriter::C_SQLSTATE_INTEGRITY_CONSTRAINT_VIOLATION;
+
 		return in_array($sqlState, $list);
 	}
 
@@ -318,5 +327,127 @@ where table_schema = 'public'" );
 		return $sqlSnippet;
 	}
 
+
+	/**
+	 * Adds a foreign key to a table. The foreign key will not have any action; you
+	 * may configure this afterwards.
+	 *
+	 * @param  string $type        type you want to modify table of
+	 * @param  string $targetType  target type
+	 * @param  string $field       field of the type that needs to get the fk
+	 * @param  string $targetField field where the fk needs to point to
+	 *
+	 * @return bool $success whether an FK has been added
+	 */
+	public function addFK( $type, $targetType, $field, $targetField) {
+		try{
+			$table = $this->safeTable($type);
+			$column = $this->safeColumn($field);
+			$tableNoQ = $this->safeTable($type,true);
+			$columnNoQ = $this->safeColumn($field,true);
+			$targetTable = $this->safeTable($targetType);
+			$targetColumn  = $this->safeColumn($targetField);
+			$fkCode = $tableNoQ.'_'.$columnNoQ.'_fkey';
+			$sql = "
+						SELECT
+								c.oid,
+								n.nspname,
+								c.relname,
+								n2.nspname,
+								c2.relname,
+								cons.conname
+						FROM pg_class c
+						JOIN pg_namespace n ON n.oid = c.relnamespace
+						LEFT OUTER JOIN pg_constraint cons ON cons.conrelid = c.oid
+						LEFT OUTER JOIN pg_class c2 ON cons.confrelid = c2.oid
+						LEFT OUTER JOIN pg_namespace n2 ON n2.oid = c2.relnamespace
+						WHERE c.relkind = 'r'
+						AND n.nspname IN ('public')
+						AND (cons.contype = 'f' OR cons.contype IS NULL)
+						AND
+						(  cons.conname = '{$fkCode}' )
+
+					  ";
+			$rows = $this->adapter->get( $sql );
+			if (!count($rows)) {
+				try{
+					$this->adapter->exec("ALTER TABLE  $table
+					ADD FOREIGN KEY (  $column ) REFERENCES  $targetTable (
+					$targetColumn) ON DELETE NO ACTION ON UPDATE NO ACTION ;");
+					return true;
+				}
+				catch(Exception $e) {
+				}
+			}
+		}
+		catch(Exception $e){
+			return false;
+		}
+	}
+
+
+
+	/**
+	 * Add the constraints for a specific database driver: PostgreSQL.
+	 * @todo Too many arguments; find a way to solve this in a neater way.
+	 *
+	 * @param string			  $table     table
+	 * @param string			  $table1    table1
+	 * @param string			  $table2    table2
+	 * @param string			  $property1 property1
+	 * @param string			  $property2 property2
+	 * @param boolean			  $dontCache want to have cache?
+	 *
+	 * @return boolean $succes whether the constraint has been applied
+	 */
+	protected function constrain($table, $table1, $table2, $property1, $property2, $dontCache) {
+		try{
+			$writer = $this;
+			$adapter = $this->adapter;
+			$fkCode = "fk".md5($table.$property1.$property2);
+			$sql = "
+						SELECT
+								c.oid,
+								n.nspname,
+								c.relname,
+								n2.nspname,
+								c2.relname,
+								cons.conname
+						FROM pg_class c
+						JOIN pg_namespace n ON n.oid = c.relnamespace
+						LEFT OUTER JOIN pg_constraint cons ON cons.conrelid = c.oid
+						LEFT OUTER JOIN pg_class c2 ON cons.confrelid = c2.oid
+						LEFT OUTER JOIN pg_namespace n2 ON n2.oid = c2.relnamespace
+						WHERE c.relkind = 'r'
+						AND n.nspname IN ('public')
+						AND (cons.contype = 'f' OR cons.contype IS NULL)
+						AND
+						(  cons.conname = '{$fkCode}a'	OR  cons.conname = '{$fkCode}b' )
+
+					  ";
+
+			$rows = $adapter->get( $sql );
+			if (!count($rows)) {
+
+				$table = $writer->getFormattedTableName($table);
+				$table1 = $writer->getFormattedTableName($table1);
+				$table2 = $writer->getFormattedTableName($table2);
+
+				if (!$dontCache) $this->fkcache[ $fkCode ] = true;
+				$sql1 = "ALTER TABLE \"$table\" ADD CONSTRAINT
+						  {$fkCode}a FOREIGN KEY ($property1)
+							REFERENCES \"$table1\" (id) ON DELETE CASCADE ";
+				$sql2 = "ALTER TABLE \"$table\" ADD CONSTRAINT
+						  {$fkCode}b FOREIGN KEY ($property2)
+							REFERENCES \"$table2\" (id) ON DELETE CASCADE ";
+				$adapter->exec($sql1);
+				$adapter->exec($sql2);
+			}
+			return true;
+		}
+		catch(Exception $e){
+			return false;
+		}
+	}
 
 }

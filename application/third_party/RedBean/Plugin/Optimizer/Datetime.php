@@ -2,7 +2,7 @@
 /**
  * RedBean Optimizer DateTime
  * @file				RedBean/Plugin/Optimizer/DateTime.php
- * @description	An Optimizer Plugin for RedBean.
+ * @description			An Optimizer Plugin for RedBean.
  *						Tries to convert columns to MySQL datetime
  *						if possible.
  *
@@ -13,7 +13,7 @@
  * This source file is subject to the BSD/GPLv2 License that is bundled
  * with this source code in the file license.txt.
  */
-class RedBean_Plugin_Optimizer_Datetime extends RedBean_CompatManager implements RedBean_Plugin_IOptimizer {
+class RedBean_Plugin_Optimizer_Datetime  implements RedBean_Plugin_IOptimizer {
 
 	/**
 	 * An optimizer takes three arguments; a table, column and value.
@@ -72,16 +72,6 @@ class RedBean_Plugin_Optimizer_Datetime extends RedBean_CompatManager implements
 	 */
 	protected $adapter;
 
-	/**
-	 * Describes to RedBean what kind of systems are supported.
-	 * Associative array: keys are database brands, values are
-	 * integer version numbers.
-	 *
-	 * @var array $collection Collection of Supported Systems and Version.
-	 */
-	protected $supportedSystems = array(
-		RedBean_CompatManager::C_SYSTEM_MYSQL => "5"
-	);
 
 	/**
 	 * Constructor.
@@ -90,7 +80,6 @@ class RedBean_Plugin_Optimizer_Datetime extends RedBean_CompatManager implements
 	 * @param RedBean_ToolBox $toolbox toolbox for DB operations.
 	 */
 	public function __construct( RedBean_ToolBox $toolbox ) {
-		$this->scanToolBox($toolbox);
 		$this->writer = $toolbox->getWriter();
 		$this->adapter = $toolbox->getDatabaseAdapter();
 	}
@@ -153,6 +142,7 @@ class RedBean_Plugin_Optimizer_Datetime extends RedBean_CompatManager implements
 		//get all the fields in the table
 		$fields = $this->writer->getColumns($this->table);
 		//If the column for some reason does not occur in fields, return
+		//print_r($fields);
 		if (!in_array($this->column,array_keys($fields))) return false;
 		//get the type we got in the field of the table
 		$typeInField = $this->writer->code($fields[$this->column]);
@@ -161,13 +151,13 @@ class RedBean_Plugin_Optimizer_Datetime extends RedBean_CompatManager implements
 		if ($typeInField!="datetime") {
 			if ($this->matchesDateTime($this->value)) {
 				//Ok, value is datetime, can we convert the column to support this?
-				$cnt = (int) $this->adapter->getCell("select count(*) as n from {$this->table} where
+				$cnt = (int) $this->adapter->getCell("select count(*) as n from ".$this->writer->safeTable($this->table)." where
 						  {$this->column} regexp '[0-9]{4}-[0-1][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9]:[0-5][0-9]'
-						  ");
-				$total = (int) $this->adapter->getCell("SELECT count(*) FROM ".$this->writer->noKW($this->table));
+						  OR {$this->column} IS NULL");
+				$total = (int) $this->adapter->getCell("SELECT count(*) FROM ".$this->writer->safeTable($this->table));
 				//Is it safe to convert: ie are all values compatible?
 				if ($total===$cnt) { //yes
-					$this->adapter->exec("ALTER TABLE ".$this->writer->noKW($this->table)." change ".$this->writer->noKW($this->column)." ".$this->writer->noKW($this->column)." datetime ");
+					$this->adapter->exec("ALTER TABLE ".$this->writer->safeTable($this->table)." change ".$this->writer->safeColumn($this->column)." ".$this->writer->safeColumn($this->column)." datetime ");
 				}
 				//No further optimization required.
 				return false;

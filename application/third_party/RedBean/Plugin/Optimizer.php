@@ -1,7 +1,7 @@
 <?php
 /**
  * Optimizer
- * @file 		RedBean/Optimizer.php
+ * @file 			RedBean/Optimizer.php
  * @author			Gabor de Mooij
  * @license			BSD
  *
@@ -10,16 +10,7 @@
  * This source file is subject to the BSD/GPLv2 License that is bundled
  * with this source code in the file license.txt.
  */
-class RedBean_Plugin_Optimizer extends RedBean_CompatManager implements RedBean_Plugin,RedBean_Observer {
-
-	/**
-	 * Specify what database systems are supported by this class.
-	 * @var array $databaseSpecs
-	 */
-	protected $supportedSystems = array(
-			  RedBean_CompatManager::C_SYSTEM_MYSQL => "5"
-	);
-
+class RedBean_Plugin_Optimizer implements RedBean_Observer {
 
 	/**
 	 * @var RedBean_Adapter_DBAdapter
@@ -53,7 +44,6 @@ class RedBean_Plugin_Optimizer extends RedBean_CompatManager implements RedBean_
 	 * @param RedBean_ToolBox $toolbox
 	 */
 	public function __construct( RedBean_ToolBox $toolbox ) {
-		$this->scanToolBox( $toolbox );
 		$this->oodb = $toolbox->getRedBean();
 		$this->adapter = $toolbox->getDatabaseAdapter();
 		$this->writer = $toolbox->getWriter();
@@ -69,14 +59,12 @@ class RedBean_Plugin_Optimizer extends RedBean_CompatManager implements RedBean_
 	 *
 	 */
 	protected function optimize($table,$column,$value) {
-
 		foreach($this->optimizers as $optimizer) {
 			$optimizer->setTable($table);
 			$optimizer->setColumn($column);
 			$optimizer->setValue($value);
 			if (!$optimizer->optimize()) break;
 		}
-
 	}
 
 
@@ -92,25 +80,22 @@ class RedBean_Plugin_Optimizer extends RedBean_CompatManager implements RedBean_
 		try {
 			if ($event=="update") {
 				//export the bean as an array
-				$arr = $bean->export();
+				$arr = $bean->export(); //print_r($arr);
 				//remove the id property
-				unset($arr["id"]);
+				unset($arr["id"]); 
 				//If we are left with an empty array we might as well return
 				if (count($arr)==0) return;
 				//fetch table name for this bean
-				$table = $this->adapter->escape($bean->getMeta("type"));
 				//get the column names for this table
+				$table = $bean->getMeta("type");
 				$columns = array_keys($arr);
 				//Select a random column for optimization.
-				$column = $this->adapter->escape($columns[ array_rand($columns) ]);
+				$column = $columns[ array_rand($columns) ];
 				//get the value to be optimized
 				$value = $arr[$column];
 				$this->optimize($table,$column,$value);
 			}
-		}catch(RedBean_Exception_SQL $e) {
-			//optimizer might make mistakes, don't care.
-			//echo $e->getMessage()."<br>";
-		}
+		}catch(RedBean_Exception_SQL $e) { }
 	}
 	
 	/**

@@ -2,7 +2,7 @@
 /**
  * RedBean Optimizer Shrink
  * @file				RedBean/Plugin/Optimizer/Shrink.php
- * @description	An Optimizer Plugin for RedBean.
+ * @description			An Optimizer Plugin for RedBean.
  *						This optimizer tries to narrow columns on the fly.
  *						If the values in a column can be stored in a smaller
  *						column type this plugin will try to adjust the column to the
@@ -15,7 +15,7 @@
  * This source file is subject to the BSD/GPLv2 License that is bundled
  * with this source code in the file license.txt.
  */
-class RedBean_Plugin_Optimizer_Shrink extends RedBean_CompatManager implements RedBean_Plugin_IOptimizer {
+class RedBean_Plugin_Optimizer_Shrink implements RedBean_Plugin_IOptimizer {
 
 
 	/**
@@ -75,16 +75,6 @@ class RedBean_Plugin_Optimizer_Shrink extends RedBean_CompatManager implements R
 	 */
 	protected $adapter;
 
-	/**
-	 * Describes to RedBean what kind of systems are supported.
-	 * Associative array: keys are database brands, values are
-	 * integer version numbers.
-	 *
-	 * @var array $collection Collection of Supported Systems and Version.
-	 */
-	protected $supportedSystems = array(
-		RedBean_CompatManager::C_SYSTEM_MYSQL => "5"
-	);
 
 	/**
 	 * Constructor.
@@ -93,7 +83,6 @@ class RedBean_Plugin_Optimizer_Shrink extends RedBean_CompatManager implements R
 	 * @param RedBean_ToolBox $toolbox toolbox for DB operations.
 	 */
 	public function __construct( RedBean_ToolBox $toolbox ) {
-		$this->scanToolBox($toolbox);
 		$this->writer = $toolbox->getWriter();
 		$this->adapter = $toolbox->getDatabaseAdapter();
 	}
@@ -162,25 +151,25 @@ class RedBean_Plugin_Optimizer_Shrink extends RedBean_CompatManager implements R
 		//Is the type too wide?
 		if ($type < $typeInField) {
 			try {
-				@$this->adapter->exec("alter table ".$this->writer->noKW($this->table)." drop __test");
+				@$this->adapter->exec("alter table ".$this->writer->safeTable($this->table)." drop __test");
 			}catch(Exception $e) {}
 			//Try to re-fit the entire column; by testing it.
 			$type = $this->writer->typeno_sqltype[$type];
 			//Add a test column.
-			@$this->adapter->exec("alter table ".$this->writer->noKW($this->table)." add __test ".$type);
+			@$this->adapter->exec("alter table ".$this->writer->safeTable($this->table)." add __test ".$type);
 			//Copy the values and see if there are differences.
-			@$this->adapter->exec("update ".$this->writer->noKW($this->table)." set __test=".$this->writer->noKW($this->column)."");
-			$rows = $this->adapter->get("select ".$this->writer->noKW($this->column)." as a, __test as b from ".$this->writer->noKW($this->table));
+			@$this->adapter->exec("update ".$this->writer->safeTable($this->table)." set __test=".$this->writer->safeColumn($this->column)."");
+			$rows = $this->adapter->get("select ".$this->writer->safeColumn($this->column)." as a, __test as b from ".$this->writer->safeTable($this->table));
 			$diff = 0;
 			foreach($rows as $row) {
 				$diff += ($row["a"]!=$row["b"]);
 			}
 			if (!$diff) {
 				//No differences; shrink column.
-				@$this->adapter->exec("alter table ".$this->writer->noKW($this->table)." change ".$this->writer->noKW($this->column)." ".$this->writer->noKW($this->column)." ".$type);
+				@$this->adapter->exec("alter table ".$this->writer->safeTable($this->table)." change ".$this->writer->safeColumn($this->column)." ".$this->writer->safeColumn($this->column)." ".$type);
 			}
 			//Throw away test column; we don't need it anymore!
-			@$this->adapter->exec("alter table ".$this->writer->noKW($this->table)." drop __test");
+			@$this->adapter->exec("alter table ".$this->writer->safeTable($this->table)." drop __test");
 		}
 		return false;
 	}

@@ -3,27 +3,14 @@
  * RedBean SQLiteWriter
  * 
  * @file				RedBean/QueryWriter/SQLite.php
- * @description	Represents a SQLite Database to RedBean
+ * @description			Represents a SQLite Database to RedBean
  *						To write a driver for a different database for RedBean
  *						you should only have to change this file.
- * @author			Gabor de Mooij
- * @license			BSD
+ * @author				Gabor de Mooij
+ * @license				BSD
  */
-class RedBean_QueryWriter_SQLite extends RedBean_AQueryWriter implements RedBean_QueryWriter {
+class RedBean_QueryWriter_SQLite extends RedBean_QueryWriter_AQueryWriter implements RedBean_QueryWriter {
 
-
-	/**
-	 *
-	 * @var RedBean_Adapter_DBAdapter
-	 * Holds database adapter
-	 */
-	protected $adapter;
-	
-	/**
-	 * @var string
-	 * character to escape keyword table/column names
-	 */
-  protected $quoteCharacter = '`';
 
 	/**
 	 * Constructor
@@ -31,8 +18,9 @@ class RedBean_QueryWriter_SQLite extends RedBean_AQueryWriter implements RedBean
 	 *
 	 * @param RedBean_Adapter_DBAdapter $adapter adapter
 	 */
-	public function __construct( RedBean_Adapter $adapter, $frozen = false ) {
+	public function __construct( RedBean_Adapter $adapter ) {
 		$this->adapter = $adapter;
+		parent::__construct();
 	}
 
 	/**
@@ -51,7 +39,7 @@ class RedBean_QueryWriter_SQLite extends RedBean_AQueryWriter implements RedBean
 	 * @param string $table table
 	 */
 	public function createTable( $table ) {
-		$idfield = $this->getIDfield($table, true);
+		$idfield = $this->safeColumn($this->getIDfield($table));
 		$table = $this->safeTable($table);
 		$sql = "
                      CREATE TABLE $table ( $idfield INTEGER PRIMARY KEY AUTOINCREMENT )
@@ -74,6 +62,10 @@ class RedBean_QueryWriter_SQLite extends RedBean_AQueryWriter implements RedBean
 			$columns[$r["name"]]=$r["type"];
 		}
 		return $columns;
+	}
+
+	public function getTypeForID() {
+		return 1;
 	}
 
 	/**
@@ -145,4 +137,36 @@ class RedBean_QueryWriter_SQLite extends RedBean_AQueryWriter implements RedBean
 		return in_array($sqlState, $list);
 	}
 
+
+
+
+	/**
+	 * Counts rows in a table.
+	 * Uses SQLite optimization for deleting all records (i.e. no WHERE)
+	 *
+	 * @param string $beanType
+	 *
+	 * @return integer $numRowsFound
+	 */
+	public function wipe($type) {
+		$table = $this->safeTable($type);
+		$this->adapter->exec("DELETE FROM $table");
+	}
+
+
+
+	/**
+	 * Not implemented for SQLite, uses triggers.
+	 *
+	 *
+	 * @param  string $type        type you want to modify table of
+	 * @param  string $targetType  target type
+	 * @param  string $field       field of the type that needs to get the fk
+	 * @param  string $targetField field where the fk needs to point to
+	 *
+	 * @return bool $success whether an FK has been added
+	 */
+	public function addFK( $type, $targetType, $field, $targetField) {
+		//not supported yet
+	}
 }

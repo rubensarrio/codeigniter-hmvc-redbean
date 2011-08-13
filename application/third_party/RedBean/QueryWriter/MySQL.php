@@ -14,7 +14,7 @@
  * This source file is subject to the BSD/GPLv2 License that is bundled
  * with this source code in the file license.txt.
  */
-class RedBean_QueryWriter_MySQL extends RedBean_AQueryWriter implements RedBean_QueryWriter {
+class RedBean_QueryWriter_MySQL extends RedBean_QueryWriter_AQueryWriter implements RedBean_QueryWriter {
 
 	/**
 	 * Here we describe the datatypes that RedBean
@@ -108,7 +108,7 @@ class RedBean_QueryWriter_MySQL extends RedBean_AQueryWriter implements RedBean_
 	 * Supported Column Types
 	 */
 	public $typeno_sqltype = array(
-			  
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_BOOL=>"  SET('1')  ",
 			  RedBean_QueryWriter_MySQL::C_DATATYPE_UINT8=>" TINYINT(3) UNSIGNED ",
 			  RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32=>" INT(11) UNSIGNED ",
 			  RedBean_QueryWriter_MySQL::C_DATATYPE_DOUBLE=>" DOUBLE ",
@@ -143,19 +143,28 @@ class RedBean_QueryWriter_MySQL extends RedBean_AQueryWriter implements RedBean_
 	 * @var string
 	 * character to escape keyword table/column names
 	 */
-  protected $quoteCharacter = '`';
+  	protected $quoteCharacter = '`';
 
 	/**
 	 * Constructor.
 	 * The Query Writer Constructor also sets up the database.
 	 *
 	 * @param RedBean_Adapter_DBAdapter $adapter adapter
-	 * @param boolean							$frozen  allow schema modif.?
-	 *
 	 *
 	 */
-	public function __construct( RedBean_Adapter $adapter, $frozen = false ) {
+	public function __construct( RedBean_Adapter $adapter ) {
 		$this->adapter = $adapter;
+		parent::__construct();
+	}
+
+	/**
+	 * This method returns the datatype to be used for primary key IDS and
+	 * foreign keys. Returns one if the data type constants.
+	 *
+	 * @return integer $const data type to be used for IDS.
+	 */
+	public function getTypeForID() {
+		return self::C_DATATYPE_UINT32;
 	}
 
 	/**
@@ -168,12 +177,16 @@ class RedBean_QueryWriter_MySQL extends RedBean_AQueryWriter implements RedBean_
 	}
 
 	/**
-	 * Creates an empty, column-less table for a bean.
+	 * Creates an empty, column-less table for a bean based on it's type.
+	 * This function creates an empty table for a bean. It uses the
+	 * safeTable() function to convert the type name to a table name.
 	 * 
-	 * @param string $table table
+	 * @param string $table type of bean you want to create a table for
+	 *
+	 * @return void
 	 */
 	public function createTable( $table ) {
-		$idfield = $this->getIDfield($table, true);
+		$idfield = $this->safeColumn($this->getIDfield($table));
 		$table = $this->safeTable($table);
 		$sql = "
                      CREATE TABLE $table (
@@ -209,14 +222,12 @@ class RedBean_QueryWriter_MySQL extends RedBean_AQueryWriter implements RedBean_
 	 * @return integer $type type
 	 */
 	public function scanType( $value ) {
-
 		if (is_null($value)) {
-			return RedBean_QueryWriter_MySQL::C_DATATYPE_UINT8;
+			return RedBean_QueryWriter_MySQL::C_DATATYPE_BOOL;
 		}
-		$orig = $value;
 		$value = strval($value);
-		if ($value=="1" || $value=="" || $value=="0") {
-			return RedBean_QueryWriter_MySQL::C_DATATYPE_UINT8; //RedBean_QueryWriter_MySQL::C_DATATYPE_BOOL;
+		if ($value=="1" || $value=="") {
+			return RedBean_QueryWriter_MySQL::C_DATATYPE_BOOL;
 		}
 		if (is_numeric($value) && (floor($value)==$value) && $value >= 0 && $value <= 255 ) {
 			return RedBean_QueryWriter_MySQL::C_DATATYPE_UINT8;
@@ -245,14 +256,18 @@ class RedBean_QueryWriter_MySQL extends RedBean_AQueryWriter implements RedBean_
 	}
 
 	/**
-	 * Change (Widen) the column to the give type.
+	 * This method upgrades the column to the specified data type.
+	 * This methods accepts a type and infers the corresponding table name.
 	 *
-	 * @param string $table table
-	 * @param string $column column
-	 * 
-	 * @param integer $type
+	 * @param string  $type       type / table that needs to be adjusted
+	 * @param string  $column     column that needs to be altered
+	 * @param integer $datatype   target data type
+	 *
+	 * @return void
 	 */
-	public function widenColumn( $table, $column, $type ) {
+	public function widenColumn( $type, $column, $datatype ) {
+		$table = $type;
+		$type = $datatype;
 		$table = $this->safeTable($table);
 		$column = $this->safeColumn($column);
 		$newtype = $this->getFieldType($type);
@@ -298,12 +313,73 @@ class RedBean_QueryWriter_MySQL extends RedBean_AQueryWriter implements RedBean_
 	 * @return boolean $yesno occurs in list
 	 */
 	public function sqlStateIn($state, $list) {
-
 		$sqlState = "0";
 		if ($state == "42S02") $sqlState = RedBean_QueryWriter::C_SQLSTATE_NO_SUCH_TABLE;
 		if ($state == "42S22") $sqlState = RedBean_QueryWriter::C_SQLSTATE_NO_SUCH_COLUMN;
 		if ($state == "23000") $sqlState = RedBean_QueryWriter::C_SQLSTATE_INTEGRITY_CONSTRAINT_VIOLATION;
 		return in_array($sqlState, $list);
 	}
+
+
+	/**
+	 * Add the constraints for a specific database driver: MySQL.
+	 * @todo Too many arguments; find a way to solve this in a neater way.
+	 *
+	 * @param string			  $table     table
+	 * @param string			  $table1    table1
+	 * @param string			  $table2    table2
+	 * @param string			  $property1 property1
+	 * @param string			  $property2 property2
+	 * @param boolean			  $dontCache want to have cache?
+	 *
+	 * @return boolean $succes whether the constraint has been applied
+	 */
+	protected function constrain($table, $table1, $table2, $property1, $property2, $dontCache) {
+		try{
+			$writer = $this;
+			$adapter = $this->adapter;
+			$db = $adapter->getCell("select database()");
+			$fkCode = "fk".md5($table.$property1.$property2);
+			$fks =  $adapter->getCell("
+				SELECT count(*)
+				FROM information_schema.KEY_COLUMN_USAGE
+				WHERE TABLE_SCHEMA ='$db' AND TABLE_NAME ='".$writer->getFormattedTableName($table)."' AND
+				CONSTRAINT_NAME <>'PRIMARY' AND REFERENCED_TABLE_NAME is not null
+					  ");
+
+			//already foreign keys added in this association table
+			if ($fks>0) return false;
+			//add the table to the cache, so we dont have to fire the fk query all the time.
+			if (!$dontCache) $this->fkcache[ $fkCode ] = true;
+			$columns = $writer->getColumns($table);
+			if ($writer->code($columns[$property1])!==RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32) {
+				$writer->widenColumn($table, $property1, RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32);
+			}
+			if ($writer->code($columns[$property2])!==RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32) {
+				$writer->widenColumn($table, $property2, RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32);
+			}
+
+			$idfield1 = $writer->getIDField($table1);
+			$idfield2 = $writer->getIDField($table2);
+			$table = $writer->getFormattedTableName($table);
+			$table1 = $writer->getFormattedTableName($table1);
+			$table2 = $writer->getFormattedTableName($table2);
+			$sql = "
+				ALTER TABLE ".$writer->noKW($table)."
+				ADD FOREIGN KEY($property1) references `$table1`($idfield1) ON DELETE CASCADE;
+					  ";
+			$adapter->exec( $sql );
+			$sql ="
+				ALTER TABLE ".$writer->noKW($table)."
+				ADD FOREIGN KEY($property2) references `$table2`($idfield2) ON DELETE CASCADE
+					  ";
+			$adapter->exec( $sql );
+			return true;
+		}
+		catch(Exception $e){
+			return false;
+		}
+	}
+
 
 }
