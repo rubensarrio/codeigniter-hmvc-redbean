@@ -125,6 +125,7 @@ class Modules
 			return;
 		}		
 		
+		/* autoload library classes */
 		if(is_file($location = APPPATH.'libraries/'.$class.EXT)) {
 			include_once $location;
 			return;
@@ -211,7 +212,7 @@ class Modules
 		/* parse module routes */
 		foreach (self::$routes[$module] as $key => $val) {						
 					
-			$key = str_replace(':any', '.+', str_replace(':num', '[0-9]+', $key));
+			$key = str_replace(array(':any', ':num'), array('.+', '[0-9]+'), $key);
 			
 			if (preg_match('#^'.$key.'$#', $uri)) {							
 				if (strpos($val, '$') !== FALSE AND strpos($key, '(') !== FALSE) {

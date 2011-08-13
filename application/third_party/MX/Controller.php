@@ -1,6 +1,6 @@
 <?php (defined('BASEPATH')) OR exit('No direct script access allowed');
 
-/* load MX core classes */
+/** load the CI class for Modular Extensions **/
 require dirname(__FILE__).'/Base.php';
 
 /**
@@ -47,7 +47,7 @@ class MX_Controller
 		
 		/* copy a loader instance and initialize */
 		$this->load = clone load_class('Loader');
-		$this->load->_init();	
+		$this->load->_init($this);	
 		
 		/* autoload module items */
 		$this->load->_autoloader($this->autoload);
