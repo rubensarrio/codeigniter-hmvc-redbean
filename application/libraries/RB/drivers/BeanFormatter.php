@@ -6,7 +6,7 @@
  * @package RB
  * @author Rubén Sarrió <rubensarrio@gmail.com>
  */
-class RB_BeanFormatter implements RedBean_IBeanFormatter {
+class RB_BeanFormatter extends RedBean_DefaultBeanFormatter {
 	
 	private $prefix;
 	
