@@ -51,6 +51,5 @@ Examples:
 
 - [CodeIgniter user guide](http://codeigniter.com/user_guide)
 - [HMVC Wiki](http://bitbucket.org/wiredesignz/codeigniter-modular-extensions-hmvc/wiki)
-- [RedBean reference](http://redbeanphp.com)
-- [RedBean API](http://www.redbeanphp.com/docs/html/)
+- [RedBean manual](http://www.redbeanphp.com/)
 - [RedBean forum](http://groups.google.com/group/redbeanorm)
