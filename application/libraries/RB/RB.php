@@ -2,7 +2,6 @@
 
 require_once(APPPATH.'third_party/RedBean/redbean.inc.php');
 
-require_once(APPPATH.'libraries/RB/drivers/BeanFormatter.php');
 require_once(APPPATH.'libraries/RB/drivers/ModelFormatter.php');
 require_once(APPPATH.'libraries/RB/drivers/Field.php');
 require_once(APPPATH.'libraries/RB/drivers/Model.php');
@@ -41,9 +40,6 @@ class RB extends R	{
 		// Setup RedBean
 		self::setup('mysql:host='.$this->db_host.';dbname='.$this->db_name, 
 			$this->db_user, $this->db_pass);
-		
-		// Bean Formatter
-		self::$writer->setBeanFormatter(new RB_BeanFormatter());
 		
 		// Model Formatter
 		RedBean_ModelHelper::setModelFormatter(new RB_ModelFormatter);
