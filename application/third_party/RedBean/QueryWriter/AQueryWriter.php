@@ -3,7 +3,7 @@
  * RedBean Abstract Query Writer
  *
  * @file 			RedBean/QueryWriter/AQueryWriter.php
- * @description
+ * @description		Quert Writer
  *					Represents an abstract Database to RedBean
  *					To write a driver for a different database for RedBean
  *					Contains a number of functions all implementors can
@@ -17,54 +17,36 @@
  * This source file is subject to the BSD/GPLv2 License that is bundled
  * with this source code in the file license.txt.
  */
-
 abstract class RedBean_QueryWriter_AQueryWriter {
 
+	/**
+	 * Scanned value (scanType) 
+	 * @var type
+	 */
+	protected $svalue;
 
 	/**
-	 * @var array
-	 * FK Cache
-	 */
-	protected $fcache = array();
-
-	/**
-	 *
-	 * @var RedBean_IBeanFormatter
-	 * Holds the bean formatter to be used for applying
-	 * table schema.
-	 */
-	public $tableFormatter;
-  
-  
-	/**
-	 * @var array
 	 * Supported Column Types.
+	 * @var array
 	 */
 	public $typeno_sqltype = array();
-	
+
 	/**
-	 *
-	 * @var RedBean_Adapter_DBAdapter
 	 * Holds a reference to the database adapter to be used.
+	 * @var RedBean_Adapter_DBAdapter
 	 */
 	protected $adapter;
 
+	
 	/**
-	 * @var string
-	 * Indicates the field name to be used for primary keys;
-	 * default is 'id'.
-	 */
-	protected $idfield = "id";
-
-	/**
-	 * @var string
 	 * default value to for blank field (passed to PK for auto-increment)
+	 * @var string
 	 */
 	protected $defaultValue = 'NULL';
 
 	/**
-	 * @var string
 	 * character to escape keyword table/column names
+	 * @var string
 	 */
 	protected $quoteCharacter = '';
 
@@ -75,23 +57,22 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 	 * subclass to achieve this.
 	 */
 	public function __construct() {
-		$this->tableFormatter = new RedBean_DefaultBeanFormatter();
+		
 	}
 
 	/**
 	 * Do everything that needs to be done to format a table name.
 	 *
 	 * @param string $name of table
-	 * 
+	 *
 	 * @return string table name
 	 */
 	public function safeTable($name, $noQuotes = false) {
-		$name = $this->getFormattedTableName($name);
 		$name = $this->check($name);
 		if (!$noQuotes) $name = $this->noKW($name);
 		return $name;
 	}
-	
+
 	/**
 	 * Do everything that needs to be done to format a column name.
 	 *
@@ -104,7 +85,7 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 		if (!$noQuotes) $name = $this->noKW($name);
 		return $name;
 	}
-	
+
 	/**
 	 * Returns the sql that should follow an insert statement.
 	 *
@@ -117,69 +98,6 @@ abstract class RedBean_QueryWriter_AQueryWriter {
   	}
 
 	/**
-	 * Returns the string identifying a table for a given type.
-	 *
-	 * @param string $type
-	 *
-	 * @return string $table
-	 */
-	public function getFormattedTableName($type) {
-		return $this->tableFormatter->formatBeanTable($type);
-	}
-
-	/**
-	 * Returns an alias type based on a reference type. If the writer has
-	 * a tableformatter this method will pass the type to the writer's alias
-	 * function to get the alias of the type back.
-	 *
-	 * @param  string $type type you want an alias for
-	 *
-	 * @return
-	 */
-	public function getAlias($type) {
-		return $this->tableFormatter->getAlias($type);
-	}
-
-
-	/**
-	 * Sets the new bean formatter. A bean formatter is an instance
-	 * of the class BeanFormatter that determines how a bean should be represented
-	 * in the database.
-	 *
-	 * @param RedBean_IBeanFormatter $beanFormatter bean format
-	 *
-	 * @return void
-	 */
-	public function setBeanFormatter( RedBean_IBeanFormatter $beanFormatter ) {
-		$this->tableFormatter = $beanFormatter;
-	}
-	
-	/**
-	 * Get sql column type.
-	 *
-	 * @param integer $type constant
-	 *
-	 * @return string sql type
-	 */
-	public function getFieldType( $type = "" ) {
-		return array_key_exists($type, $this->typeno_sqltype) ? $this->typeno_sqltype[$type] : "";
-	}
-
-	/**
-	 * Returns the column name that should be used
-	 * to store and retrieve the primary key ID.
-	 *
-	 * @param string $type type of bean to get ID Field for
-	 *
-	 * @return string $idfieldtobeused ID field to be used for this type of bean
-	 */
-	public function getIDField( $type ) {
-		$nArgs = func_num_args();
-		if ($nArgs>1) throw new Exception("Deprecated parameter SAFE, use safeColumn() instead.");
-		return $this->tableFormatter->formatBeanID($type);
-	}
-	
-	/**
 	 * Checks table name or column name.
 	 *
 	 * @param string $table table string
@@ -188,11 +106,11 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 	 */
 	protected function check($table) {
 		if ($this->quoteCharacter && strpos($table, $this->quoteCharacter)!==false) {
-		  throw new Redbean_Exception_Security("Illegal chars in table name");
+		  throw new Redbean_Exception_Security('Illegal chars in table name');
 	    }
 		return $this->adapter->escape($table);
 	}
-	
+
 	/**
 	 * Puts keyword escaping symbols around string.
 	 *
@@ -204,7 +122,7 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 		$q = $this->quoteCharacter;
 		return $q.$str.$q;
 	}
-	
+
 	/**
 	 * This method adds a column to a table.
 	 * This methods accepts a type and infers the corresponding table name.
@@ -221,11 +139,11 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 		$type = $field;
 		$table = $this->safeTable($table);
 		$column = $this->safeColumn($column);
-		$type = $this->getFieldType($type);
+		$type = array_key_exists($type, $this->typeno_sqltype) ? $this->typeno_sqltype[$type] : "";
 		$sql = "ALTER TABLE $table ADD $column $type ";
 		$this->adapter->exec( $sql );
 	}
-	
+
 	/**
 	 * This method updates (or inserts) a record, it takes
 	 * a table name, a list of update values ( $field => $value ) and an
@@ -251,7 +169,7 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 			return $this->insertRecord($table,$insertcolumns,array($insertvalues));
 		}
 		if ($id && !count($updatevalues)) return $id;
-		$idfield = $this->safeColumn($this->getIDField($table));
+		
 		$table = $this->safeTable($table);
 		$sql = "UPDATE $table SET ";
 		$p = $v = array();
@@ -259,7 +177,7 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 			$p[] = " {$this->safeColumn($uv["property"])} = ? ";
 			$v[]=$uv["value"];
 		}
-		$sql .= implode(",", $p ) ." WHERE $idfield = ".intval($id);
+		$sql .= implode(",", $p ) ." WHERE id = ".intval($id);
 		$this->adapter->exec( $sql, $v );
 		return $id;
 	}
@@ -276,30 +194,29 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 	 */
 	protected function insertRecord( $table, $insertcolumns, $insertvalues ) {
 		$default = $this->defaultValue;
-		$idfield = $this->safeColumn($this->getIDField($table));
 		$suffix = $this->getInsertSuffix($table);
 		$table = $this->safeTable($table);
 		if (count($insertvalues)>0 && is_array($insertvalues[0]) && count($insertvalues[0])>0) {
 			foreach($insertcolumns as $k=>$v) {
 				$insertcolumns[$k] = $this->safeColumn($v);
 			}
-			$insertSQL = "INSERT INTO $table ( $idfield, ".implode(",",$insertcolumns)." ) VALUES ";
-			$insertSQL .= "( $default, ". implode(",",array_fill(0,count($insertcolumns)," ? "))." ) $suffix";
-			
+			$insertSQL = "INSERT INTO $table ( id, ".implode(",",$insertcolumns)." ) VALUES 
+			( $default, ". implode(",",array_fill(0,count($insertcolumns)," ? "))." ) $suffix";
+
 			foreach($insertvalues as $i=>$insertvalue) {
 				$ids[] = $this->adapter->getCell( $insertSQL, $insertvalue, $i );
 			}
 			$result = count($ids)===1 ? array_pop($ids) : $ids;
 		}
 		else {
-			$result = $this->adapter->getCell( "INSERT INTO $table ($idfield) VALUES($default) $suffix");
+			$result = $this->adapter->getCell( "INSERT INTO $table (id) VALUES($default) $suffix");
 		}
 		if ($suffix) return $result;
-	   $last_id = $this->adapter->getInsertID();
-		return ($this->adapter->getErrorMsg()=="" ?  $last_id : 0);
+		$last_id = $this->adapter->getInsertID();
+		return $last_id;
 	}
-	
-	
+
+
 	/**
 	 * This selects a record. You provide a
 	 * collection of conditions using the following format:
@@ -319,16 +236,16 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 	 *
 	 * @return array $records selected records
 	 */
-	public function selectRecord( $type, $conditions, $addSql=null, $delete=null, $inverse=false ) {
-		if (!is_array($conditions)) throw new Exception("Conditions must be an array");
-		
+	public function selectRecord( $type, $conditions, $addSql=null, $delete=null, $inverse=false ) { 
+		if (!is_array($conditions)) throw new Exception('Conditions must be an array');
 		$table = $this->safeTable($type);
 		$sqlConditions = array();
 		$bindings=array();
 		foreach($conditions as $column=>$values) {
+			if (!count($values)) continue;
 			$sql = $this->safeColumn($column);
-			$sql .= " ".($inverse ? " NOT ":"")." IN ( ";
-			$sql .= implode(",",array_fill(0,count($values),"?")).") ";
+			$sql .= ' '.($inverse ? ' NOT ':'').' IN ( ';
+			$sql .= implode(',',array_fill(0,count($values),'?')).') ';
 			$sqlConditions[] = $sql;
 			if (!is_array($values)) $values = array($values);
 			foreach($values as $k=>$v) {
@@ -347,71 +264,20 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 			$addSql = $addSql[0];
 
 		}
-		$sql="";
+		$sql = '';
 		if (count($sqlConditions)>0) {
 			$sql = implode(" AND ",$sqlConditions);
 			$sql = " WHERE ( $sql ) ";
 			if ($addSql) $sql .= " AND $addSql ";
 		}
 		elseif ($addSql) {
-			$sql = " WHERE ".$addSql;
+			$sql = " WHERE $addSql";
 		}
 		$sql = (($delete) ? "DELETE FROM " : "SELECT * FROM ").$table.$sql;
 		$rows = $this->adapter->get($sql,$bindings);
 		return $rows;
 	}
 
-	/**
-	 * This creates a view with name $viewID and
-	 * based on the reference type. A list of types
-	 * will be provided in the second argument. This method should create
-	 * a view by joining each type in the list (using LEFT OUTER JOINS) to the
-	 * reference type. If a type is mentioned multiple times it does not need
-	 * to be re-joined but the next type should be joined to that type instead.
-	 * This methods accepts a type and infers the corresponding table name.
-	 *
-	 * @param  string $referenceType reference type
-	 * @param  array  $constraints   list of types
-	 * @param  string $viewID		 name of the new view
-	 *
-	 * @return boolean $success whether a view has been generated
-	 */
-	public function createView($referenceType, $constraints, $viewID) {
-
-		$referenceTable = $referenceType;
-		$viewID = $this->safeTable($viewID,true);
-		$safeReferenceTable = $this->safeTable($referenceTable);
-
-		try{ $this->adapter->exec("DROP VIEW $viewID"); }catch(Exception $e){}
-
-		$columns = array_keys( $this->getColumns( $referenceTable ) );
-
-		$referenceTable = ($referenceTable);
-		$joins = array();
-		foreach($constraints as $table=>$constraint) {
-			$safeTable = $this->safeTable($table);
-			$addedColumns = array_keys($this->getColumns($table));
-			foreach($addedColumns as $addedColumn) {
-				$newColName = $addedColumn."_of_".$table;
-				$newcolumns[] = $this->safeTable($table).".".$this->safeColumn($addedColumn) . " AS ".$this->safeColumn($newColName);
-			}
-			if (count($constraint)!==2) throw Exception("Invalid VIEW CONSTRAINT");
-			$referenceColumn = $constraint[0];
-			$compareColumn = $constraint[1];
-			$join = $referenceColumn." = ".$compareColumn;
-			$joins[] = " LEFT JOIN $safeTable ON $join ";
-		}
-
-		$joins = implode(" ", $joins);
-		foreach($columns as $k=>$column) {
-			$columns[$k]=$safeReferenceTable.".".$this->safeColumn($column);
-		}
-		$columns = implode("\n,",array_merge($newcolumns,$columns));
-		$sql = "CREATE VIEW $viewID AS SELECT $columns FROM $safeReferenceTable $joins ";
-
-		$this->adapter->exec($sql);
-		return true;
-	}
 
 	/**
 	 * This method removes all beans of a certain type.
@@ -436,8 +302,7 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 	 * @return integer $numRowsFound
 	 */
 	public function count($beanType) {
-		$table = $this->safeTable($beanType);
-		$sql = "SELECT count(*) FROM $table ";
+		$sql = "SELECT count(*) FROM {$this->safeTable($beanType)} ";
 		return (int) $this->adapter->getCell($sql);
 	}
 
@@ -455,7 +320,7 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 	public function addIndex($type, $name, $column) {
 		$table = $type;
 		$table = $this->safeTable($table);
-		$name = preg_replace("/\W/","",$name);
+		$name = preg_replace('/\W/','',$name);
 		$column = $this->safeColumn($column);
 		try{ $this->adapter->exec("CREATE INDEX $name ON $table ($column) "); }catch(Exception $e){}
 	}
@@ -501,24 +366,22 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 		$tableNoQ = $this->safeTable($type,true);
 		$targetTable = $this->safeTable($targetType);
 		$column = $this->safeColumn($field);
+		$columnNoQ = $this->safeColumn($field,true);
 		$targetColumn  = $this->safeColumn($targetField);
 		$db = $this->adapter->getCell("select database()");
 		$fks =  $this->adapter->getCell("
 			SELECT count(*)
 			FROM information_schema.KEY_COLUMN_USAGE
-			WHERE TABLE_SCHEMA ='$db' AND TABLE_NAME = '$tableNoQ'  AND
+			WHERE TABLE_SCHEMA ='$db' AND TABLE_NAME = '$tableNoQ'  AND COLUMN_NAME = '$columnNoQ' AND
 			CONSTRAINT_NAME <>'PRIMARY' AND REFERENCED_TABLE_NAME is not null
 		");
-
 		if ($fks==0) {
 			try{
 				$this->adapter->exec("ALTER TABLE  $table
 				ADD FOREIGN KEY (  $column ) REFERENCES  $targetTable (
-				$targetColumn) ON DELETE NO ACTION ON UPDATE NO ACTION ;");
+				$targetColumn) ON DELETE SET NULL ON UPDATE SET NULL ;");
 			}
-			catch(Exception $e) {
-				
-			}
+			catch(Exception $e) { } //Failure of fk-constraints is not a problem
 		}
 
 	}
@@ -533,7 +396,7 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 	 *
 	 * @return string $linktable name of the link table
 	 */
-	public function getAssocTableFormat($types) {
+	public static function getAssocTableFormat($types) {
 		sort($types);
 		return ( implode("_", $types) );
 	}
@@ -549,19 +412,16 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 	 *
 	 * @return void
 	 */
-	public function addConstraint( RedBean_OODBBean $bean1, RedBean_OODBBean $bean2, $dontCache = false ) {
-
-		$table1 = $bean1->getMeta("type");
-		$table2 = $bean2->getMeta("type");
+	public function addConstraint( RedBean_OODBBean $bean1, RedBean_OODBBean $bean2) {
+		$table1 = $bean1->getMeta('type');
+		$table2 = $bean2->getMeta('type');
 		$writer = $this;
 		$adapter = $this->adapter;
-		$table = $this->getAssocTableFormat( array( $table1,$table2) );
-		$idfield1 = $writer->getIDField($bean1->getMeta("type"));
-		$idfield2 = $writer->getIDField($bean2->getMeta("type"));
-
-		$property1 = $bean1->getMeta("type") . "_id";
-		$property2 = $bean2->getMeta("type") . "_id";
-		if ($property1==$property2) $property2 = $bean2->getMeta("type")."2_id";
+		$table = RedBean_QueryWriter_AQueryWriter::getAssocTableFormat( array( $table1,$table2) );
+		
+		$property1 = $bean1->getMeta('type') . '_id';
+		$property2 = $bean2->getMeta('type') . '_id';
+		if ($property1==$property2) $property2 = $bean2->getMeta("type").'2_id';
 
 		$table = $adapter->escape($table);
 		$table1 = $adapter->escape($table1);
@@ -569,41 +429,35 @@ abstract class RedBean_QueryWriter_AQueryWriter {
 		$property1 = $adapter->escape($property1);
 		$property2 = $adapter->escape($property2);
 
-		//In Cache? Then we dont need to bother
-		$fkCode = "fk".md5($table.$property1.$property2);
-		if (isset($this->fkcache[$fkCode])) return false;
 		//Dispatch to right method
-
-		try {
-			return $this->constrain($table, $table1, $table2, $property1, $property2, $dontCache);
-		}
-		catch(RedBean_Exception_SQL $e) {
-			if (!$writer->sqlStateIn($e->getSQLState(),
-			array(
-			RedBean_QueryWriter::C_SQLSTATE_NO_SUCH_COLUMN,
-			RedBean_QueryWriter::C_SQLSTATE_NO_SUCH_TABLE)
-			)) throw $e;
-		}
-
-		return false;
-
+		return $this->constrain($table, $table1, $table2, $property1, $property2);
 	}
 
 	/**
-	 * Abstract method. Needs to be implemented by 'fluid' driver.
-	 * Add the constraints for a specific database driver.
-	 * @abstract
-	 *
-	 * @param string			  $table     table
-	 * @param string			  $table1    table1
-	 * @param string			  $table2    table2
-	 * @param string			  $property1 property1
-	 * @param string			  $property2 property2
-	 * @param boolean			  $dontCache want to have cache?
-	 *
-	 * @return boolean $succes whether the constraint has been applied
+	 * Checks whether a value starts with zeros. In this case
+	 * the value should probably be stored using a text datatype instead of a
+	 * numerical type in order to preserve the zeros.
+	 * 
+	 * @param string $value value to be checked.
 	 */
-	abstract protected function constrain($table, $table1, $table2, $p1, $p2, $cache);
-
+	protected function startsWithZeros($value) {
+		$value = strval($value);
+		if (strlen($value)>1 && strpos($value,'0')===0 && strpos($value,'0.')!==0) {
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+	
+	/**
+	 * Returns a modified value from ScanType.
+	 * Used for special types.
+	 * 
+	 * @return mixed $value changed value 
+	 */
+	public function getValue(){
+		return $this->svalue;
+	}
 
 }

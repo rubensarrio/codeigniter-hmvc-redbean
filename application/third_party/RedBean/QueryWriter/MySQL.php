@@ -1,11 +1,11 @@
 <?php
 /**
  * RedBean MySQLWriter
- * 
- * @file				RedBean/QueryWriter/MySQL.php
- * @description	Represents a MySQL Database to RedBean
- *						To write a driver for a different database for RedBean
- *						you should only have to change this file.
+ *
+ * @file			RedBean/QueryWriter/MySQL.php
+ * @description		Represents a MySQL Database to RedBean
+ *					To write a driver for a different database for RedBean
+ *					you should only have to change this file.
  * @author			Gabor de Mooij
  * @license			BSD
  *
@@ -23,125 +23,106 @@ class RedBean_QueryWriter_MySQL extends RedBean_QueryWriter_AQueryWriter impleme
 	 */
 
 	/**
-	 * @var integer
-	 *
 	 * DATA TYPE
 	 * Boolean Data type
+	 * @var integer
 	 */
 	const C_DATATYPE_BOOL = 0;
 
 	/**
 	 *
-	 * @var integer
-	 *
 	 * DATA TYPE
 	 * Unsigned 8BIT Integer
-	 * 
+	 * @var integer
 	 */
 	const C_DATATYPE_UINT8 = 1;
 
 	/**
 	 *
-	 * @var integer
-	 *
 	 * DATA TYPE
 	 * Unsigned 32BIT Integer
-	 * 
+	 * @var integer
 	 */
 	const C_DATATYPE_UINT32 = 2;
 
 	/**
-	 * @var integer
-	 *
 	 * DATA TYPE
 	 * Double precision floating point number and
 	 * negative numbers.
-	 * 
+	 * @var integer
 	 */
 	const C_DATATYPE_DOUBLE = 3;
 
 	/**
-	 * @var integer
-	 * 
 	 * DATA TYPE
 	 * Standard Text column (like varchar255)
 	 * At least 8BIT character support.
-	 * 
+	 * @var integer
 	 */
 	const C_DATATYPE_TEXT8 = 4;
 
 	/**
-	 * @var integer
-	 * 
 	 * DATA TYPE
 	 * Long text column (16BIT)
-	 * 
+	 * @var integer
 	 */
 	const C_DATATYPE_TEXT16 = 5;
 
 	/**
-	 * @var integer
-	 *
+	 * 
 	 * DATA TYPE
 	 * 32BIT long textfield (number of characters can be as high as 32BIT) Data type
 	 * This is the biggest column that RedBean supports. If possible you may write
 	 * an implementation that stores even bigger values.
-	 * 
+	 * @var integer
 	 */
 	const C_DATATYPE_TEXT32 = 6;
 
 	/**
+	 * Special type date for storing date values: YYYY-MM-DD
 	 * @var integer
+	 */	
+	const C_DATATYPE_SPECIAL_DATE = 80;
+	
+	/**
+	 * Special type datetime for store date-time values: YYYY-MM-DD HH:II:SS
+	 * @var integer
+	 */
+	const C_DATATYPE_SPECIAL_DATETIME = 81;
+	
+
+	/**
 	 * 
 	 * DATA TYPE
 	 * Specified. This means the developer or DBA
 	 * has altered the column to a different type not
 	 * recognized by RedBean. This high number makes sure
 	 * it will not be converted back to another type by accident.
-	 * 
+	 * @var integer
 	 */
 	const C_DATATYPE_SPECIFIED = 99;
 
-
 	/**
-	 * @var array
-	 * Supported Column Types
+	 * Spatial types
+	 * @var integer
 	 */
-	public $typeno_sqltype = array(
-			  RedBean_QueryWriter_MySQL::C_DATATYPE_BOOL=>"  SET('1')  ",
-			  RedBean_QueryWriter_MySQL::C_DATATYPE_UINT8=>" TINYINT(3) UNSIGNED ",
-			  RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32=>" INT(11) UNSIGNED ",
-			  RedBean_QueryWriter_MySQL::C_DATATYPE_DOUBLE=>" DOUBLE ",
-			  RedBean_QueryWriter_MySQL::C_DATATYPE_TEXT8=>" VARCHAR(255) ",
-			  RedBean_QueryWriter_MySQL::C_DATATYPE_TEXT16=>" TEXT ",
-			  RedBean_QueryWriter_MySQL::C_DATATYPE_TEXT32=>" LONGTEXT "
-	);
-
+	const C_DATATYPE_SPECIAL_POINT = 100;
+	const C_DATATYPE_SPECIAL_LINESTRING = 101;
+	const C_DATATYPE_SPECIAL_GEOMETRY = 102;
+	const C_DATATYPE_SPECIAL_POLYGON = 103;
+	const C_DATATYPE_SPECIAL_MULTIPOINT = 104;
+	const C_DATATYPE_SPECIAL_MULTIPOLYGON = 105;
+	const C_DATATYPE_SPECIAL_GEOMETRYCOLLECTION = 106;
+	
 	/**
-	 *
-	 * @var array
-	 * Supported Column Types and their
-	 * constants (magic numbers)
-	 */
-	public $sqltype_typeno = array(
-			  "set('1')"=>RedBean_QueryWriter_MySQL::C_DATATYPE_BOOL,
-			  "tinyint(3) unsigned"=>RedBean_QueryWriter_MySQL::C_DATATYPE_UINT8,
-			  "int(11) unsigned"=>RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32,
-			  "double" => RedBean_QueryWriter_MySQL::C_DATATYPE_DOUBLE,
-			  "varchar(255)"=>RedBean_QueryWriter_MySQL::C_DATATYPE_TEXT8,
-			  "text"=>RedBean_QueryWriter_MySQL::C_DATATYPE_TEXT16,
-			  "longtext"=>RedBean_QueryWriter_MySQL::C_DATATYPE_TEXT32
-	);
-
-	/**
-	 *
+	 * Holds the RedBean Database Adapter.
 	 * @var RedBean_Adapter_DBAdapter
 	 */
 	protected $adapter;
-	
+
 	/**
-	 * @var string
 	 * character to escape keyword table/column names
+	 * @var string
 	 */
   	protected $quoteCharacter = '`';
 
@@ -153,6 +134,31 @@ class RedBean_QueryWriter_MySQL extends RedBean_QueryWriter_AQueryWriter impleme
 	 *
 	 */
 	public function __construct( RedBean_Adapter $adapter ) {
+		
+		$this->typeno_sqltype = array(
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_BOOL=>"  SET('1')  ",
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_UINT8=>' TINYINT(3) UNSIGNED ',
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32=>' INT(11) UNSIGNED ',
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_DOUBLE=>' DOUBLE ',
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_TEXT8=>' VARCHAR(255) ',
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_TEXT16=>' TEXT ',
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_TEXT32=>' LONGTEXT ',
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_DATE=>' DATE ',
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_DATETIME=>' DATETIME ',
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_POINT=>' POINT ',
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_LINESTRING=>' LINESTRING  ',
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_GEOMETRY=>' GEOMETRY ',
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_POLYGON=>' POLYGON ',
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_MULTIPOINT=>' MULTIPOINT ',
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_MULTIPOLYGON=>' MULTIPOLYGON ',
+			  RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_GEOMETRYCOLLECTION=>' GEOMETRYCOLLECTION ',
+		);
+		
+		$this->sqltype_typeno = array();
+		foreach($this->typeno_sqltype as $k=>$v)
+		$this->sqltype_typeno[trim(strtolower($v))]=$k;
+		
+		
 		$this->adapter = $adapter;
 		parent::__construct();
 	}
@@ -169,7 +175,7 @@ class RedBean_QueryWriter_MySQL extends RedBean_QueryWriter_AQueryWriter impleme
 
 	/**
 	 * Returns all tables in the database.
-	 * 
+	 *
 	 * @return array $tables tables
 	 */
 	public function getTables() {
@@ -180,20 +186,17 @@ class RedBean_QueryWriter_MySQL extends RedBean_QueryWriter_AQueryWriter impleme
 	 * Creates an empty, column-less table for a bean based on it's type.
 	 * This function creates an empty table for a bean. It uses the
 	 * safeTable() function to convert the type name to a table name.
-	 * 
+	 *
 	 * @param string $table type of bean you want to create a table for
 	 *
 	 * @return void
 	 */
 	public function createTable( $table ) {
-		$idfield = $this->safeColumn($this->getIDfield($table));
 		$table = $this->safeTable($table);
-		$sql = "
-                     CREATE TABLE $table (
-                    $idfield INT( 11 ) UNSIGNED NOT NULL AUTO_INCREMENT ,
-                     PRIMARY KEY ( $idfield )
-                     ) ENGINE = InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
-				  ";
+		$sql = "     CREATE TABLE $table (
+                     id INT( 11 ) UNSIGNED NOT NULL AUTO_INCREMENT ,
+                     PRIMARY KEY ( id )
+                     ) ENGINE = InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci ";
 		$this->adapter->exec( $sql );
 	}
 
@@ -208,7 +211,7 @@ class RedBean_QueryWriter_MySQL extends RedBean_QueryWriter_AQueryWriter impleme
 		$table = $this->safeTable($table);
 		$columnsRaw = $this->adapter->get("DESCRIBE $table");
 		foreach($columnsRaw as $r) {
-			$columns[$r["Field"]]=$r["Type"];
+			$columns[$r['Field']]=$r['Type'];
 		}
 		return $columns;
 	}
@@ -218,32 +221,67 @@ class RedBean_QueryWriter_MySQL extends RedBean_QueryWriter_AQueryWriter impleme
 	 * to the given value type.
 	 *
 	 * @param string $value value
-	 * 
+	 *
 	 * @return integer $type type
 	 */
-	public function scanType( $value ) {
+	public function scanType( $value, $flagSpecial=false ) {
+		$this->svalue = $value;
+		
 		if (is_null($value)) {
 			return RedBean_QueryWriter_MySQL::C_DATATYPE_BOOL;
 		}
+		
+		if ($flagSpecial) {
+			if (strpos($value,'POINT(')===0) {
+				$this->svalue = $this->adapter->getCell('SELECT GeomFromText(?)',array($value));
+				return RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_POINT;
+			}
+			if (strpos($value,'LINESTRING(')===0) {
+				$this->svalue = $this->adapter->getCell('SELECT GeomFromText(?)',array($value));
+				return RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_LINESTRING;
+			}
+			if (strpos($value,'POLYGON(')===0) {
+				$this->svalue = $this->adapter->getCell('SELECT GeomFromText(?)',array($value));
+				return RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_POLYGON;
+			}
+			if (strpos($value,'MULTIPOINT(')===0) {
+				$this->svalue = $this->adapter->getCell('SELECT GeomFromText(?)',array($value));
+				return RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_MULTIPOINT;
+			}
+			
+			
+			if (preg_match('/^\d\d\d\d\-\d\d-\d\d$/',$value)) {
+				return RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_DATE;
+			}
+			if (preg_match('/^\d\d\d\d\-\d\d-\d\d\s\d\d:\d\d:\d\d$/',$value)) {
+				return RedBean_QueryWriter_MySQL::C_DATATYPE_SPECIAL_DATETIME;
+			}
+		}
 		$value = strval($value);
-		if ($value=="1" || $value=="") {
-			return RedBean_QueryWriter_MySQL::C_DATATYPE_BOOL;
-		}
-		if (is_numeric($value) && (floor($value)==$value) && $value >= 0 && $value <= 255 ) {
-			return RedBean_QueryWriter_MySQL::C_DATATYPE_UINT8;
-		}
-		if (is_numeric($value) && (floor($value)==$value) && $value >= 0  && $value <= 4294967295 ) {
-			return RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32;
-		}
-		if (is_numeric($value)) {
-			return RedBean_QueryWriter_MySQL::C_DATATYPE_DOUBLE;
+		if (!$this->startsWithZeros($value)) {
+
+			if ($value=='1' || $value=='') {
+				return RedBean_QueryWriter_MySQL::C_DATATYPE_BOOL;
+			}
+			if (is_numeric($value) && (floor($value)==$value) && $value >= 0 && $value <= 255 ) {
+				return RedBean_QueryWriter_MySQL::C_DATATYPE_UINT8;
+			}
+			if (is_numeric($value) && (floor($value)==$value) && $value >= 0  && $value <= 4294967295 ) {
+				return RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32;
+			}
+			if (is_numeric($value)) {
+				return RedBean_QueryWriter_MySQL::C_DATATYPE_DOUBLE;
+			}
 		}
 		if (strlen($value) <= 255) {
 			return RedBean_QueryWriter_MySQL::C_DATATYPE_TEXT8;
 		}
-		return RedBean_QueryWriter_MySQL::C_DATATYPE_TEXT16;
+		if (strlen($value) <= 65535) {
+			return RedBean_QueryWriter_MySQL::C_DATATYPE_TEXT16;
+		}
+		return RedBean_QueryWriter_MySQL::C_DATATYPE_TEXT32;
 	}
-	
+
 	/**
 	 * Returns the Type Code for a Column Description.
 	 *
@@ -252,7 +290,9 @@ class RedBean_QueryWriter_MySQL extends RedBean_QueryWriter_AQueryWriter impleme
 	 * @return integer $typecode code
 	 */
 	public function code( $typedescription ) {
-		return ((isset($this->sqltype_typeno[$typedescription])) ? $this->sqltype_typeno[$typedescription] : self::C_DATATYPE_SPECIFIED);
+		$r = ((isset($this->sqltype_typeno[$typedescription])) ? $this->sqltype_typeno[$typedescription] : self::C_DATATYPE_SPECIFIED);
+		if ($r > self::C_DATATYPE_SPECIFIED) return self::C_DATATYPE_SPECIFIED;
+		return $r;
 	}
 
 	/**
@@ -270,7 +310,7 @@ class RedBean_QueryWriter_MySQL extends RedBean_QueryWriter_AQueryWriter impleme
 		$type = $datatype;
 		$table = $this->safeTable($table);
 		$column = $this->safeColumn($column);
-		$newtype = $this->getFieldType($type);
+		$newtype = array_key_exists($type, $this->typeno_sqltype) ? $this->typeno_sqltype[$type] : "";
 		$changecolumnSQL = "ALTER TABLE $table CHANGE $column $column $newtype ";
 		$this->adapter->exec( $changecolumnSQL );
 	}
@@ -291,10 +331,10 @@ class RedBean_QueryWriter_MySQL extends RedBean_QueryWriter_AQueryWriter impleme
 			$columns[$k]= $this->safeColumn($v);
 		}
 		$r = $this->adapter->get("SHOW INDEX FROM $table");
-		$name = "UQ_".sha1(implode(',',$columns));
+		$name = 'UQ_'.sha1(implode(',',$columns));
 		if ($r) {
 			foreach($r as $i) {
-				if ($i["Key_name"]== $name) {
+				if ($i['Key_name']== $name) {
 					return;
 				}
 			}
@@ -313,13 +353,13 @@ class RedBean_QueryWriter_MySQL extends RedBean_QueryWriter_AQueryWriter impleme
 	 * @return boolean $yesno occurs in list
 	 */
 	public function sqlStateIn($state, $list) {
-		$sqlState = "0";
-		if ($state == "42S02") $sqlState = RedBean_QueryWriter::C_SQLSTATE_NO_SUCH_TABLE;
-		if ($state == "42S22") $sqlState = RedBean_QueryWriter::C_SQLSTATE_NO_SUCH_COLUMN;
-		if ($state == "23000") $sqlState = RedBean_QueryWriter::C_SQLSTATE_INTEGRITY_CONSTRAINT_VIOLATION;
-		return in_array($sqlState, $list);
+		$stateMap = array(
+			'42S02'=>RedBean_QueryWriter::C_SQLSTATE_NO_SUCH_TABLE,
+			'42S22'=>RedBean_QueryWriter::C_SQLSTATE_NO_SUCH_COLUMN,
+			'23000'=>RedBean_QueryWriter::C_SQLSTATE_INTEGRITY_CONSTRAINT_VIOLATION
+		);
+		return in_array((isset($stateMap[$state]) ? $stateMap[$state] : '0'),$list); 
 	}
-
 
 	/**
 	 * Add the constraints for a specific database driver: MySQL.
@@ -330,55 +370,58 @@ class RedBean_QueryWriter_MySQL extends RedBean_QueryWriter_AQueryWriter impleme
 	 * @param string			  $table2    table2
 	 * @param string			  $property1 property1
 	 * @param string			  $property2 property2
-	 * @param boolean			  $dontCache want to have cache?
 	 *
 	 * @return boolean $succes whether the constraint has been applied
 	 */
-	protected function constrain($table, $table1, $table2, $property1, $property2, $dontCache) {
+	protected function constrain($table, $table1, $table2, $property1, $property2) {
 		try{
-			$writer = $this;
-			$adapter = $this->adapter;
-			$db = $adapter->getCell("select database()");
-			$fkCode = "fk".md5($table.$property1.$property2);
-			$fks =  $adapter->getCell("
+			$db = $this->adapter->getCell("select database()");
+			$fks =  $this->adapter->getCell("
 				SELECT count(*)
 				FROM information_schema.KEY_COLUMN_USAGE
-				WHERE TABLE_SCHEMA ='$db' AND TABLE_NAME ='".$writer->getFormattedTableName($table)."' AND
+				WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND
 				CONSTRAINT_NAME <>'PRIMARY' AND REFERENCED_TABLE_NAME is not null
-					  ");
-
+					  ",array($db,$table));
 			//already foreign keys added in this association table
 			if ($fks>0) return false;
-			//add the table to the cache, so we dont have to fire the fk query all the time.
-			if (!$dontCache) $this->fkcache[ $fkCode ] = true;
-			$columns = $writer->getColumns($table);
-			if ($writer->code($columns[$property1])!==RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32) {
-				$writer->widenColumn($table, $property1, RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32);
+			$columns = $this->getColumns($table);
+			if ($this->code($columns[$property1])!==RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32) {
+				$this->widenColumn($table, $property1, RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32);
 			}
-			if ($writer->code($columns[$property2])!==RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32) {
-				$writer->widenColumn($table, $property2, RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32);
+			if ($this->code($columns[$property2])!==RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32) {
+				$this->widenColumn($table, $property2, RedBean_QueryWriter_MySQL::C_DATATYPE_UINT32);
 			}
 
-			$idfield1 = $writer->getIDField($table1);
-			$idfield2 = $writer->getIDField($table2);
-			$table = $writer->getFormattedTableName($table);
-			$table1 = $writer->getFormattedTableName($table1);
-			$table2 = $writer->getFormattedTableName($table2);
 			$sql = "
-				ALTER TABLE ".$writer->noKW($table)."
-				ADD FOREIGN KEY($property1) references `$table1`($idfield1) ON DELETE CASCADE;
+				ALTER TABLE ".$this->noKW($table)."
+				ADD FOREIGN KEY($property1) references `$table1`(id) ON DELETE CASCADE;
 					  ";
-			$adapter->exec( $sql );
+			$this->adapter->exec( $sql );
 			$sql ="
-				ALTER TABLE ".$writer->noKW($table)."
-				ADD FOREIGN KEY($property2) references `$table2`($idfield2) ON DELETE CASCADE
+				ALTER TABLE ".$this->noKW($table)."
+				ADD FOREIGN KEY($property2) references `$table2`(id) ON DELETE CASCADE
 					  ";
-			$adapter->exec( $sql );
+			$this->adapter->exec( $sql );
 			return true;
+		} catch(Exception $e){ return false; }
+	}
+
+	/**
+	 * Drops all tables in database
+	 */
+	public function wipeAll() {
+		$this->adapter->exec("SET FOREIGN_KEY_CHECKS=0;");
+		foreach($this->getTables() as $t) {
+	 		try{
+	 			$this->adapter->exec("drop table if exists`$t`");
+	 		}
+	 		catch(Exception $e){}
+	 		try{
+	 			$this->adapter->exec("drop view if exists`$t`");
+	 		}
+	 		catch(Exception $e){}
 		}
-		catch(Exception $e){
-			return false;
-		}
+		$this->adapter->exec("SET FOREIGN_KEY_CHECKS=1;");
 	}
 
 

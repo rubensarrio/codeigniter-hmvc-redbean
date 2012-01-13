@@ -1,8 +1,8 @@
 <?php
 /**
  * DBAdapter		(Database Adapter)
- * @file				RedBean/Adapter/DBAdapter.php
- * @description	An adapter class to connect various database systems to RedBean
+ * @file			RedBean/Adapter/DBAdapter.php
+ * @description		An adapter class to connect various database systems to RedBean
  * @author			Gabor de Mooij
  * @license			BSD
  *
@@ -14,16 +14,14 @@
 class RedBean_Adapter_DBAdapter extends RedBean_Observable implements RedBean_Adapter {
 
 	/**
-	 * @var RedBean_Driver
-	 *
 	 * ADODB compatible class
+	 * @var RedBean_Driver
 	 */
 	private $db = null;
 
 	/**
-	 * @var string
-	 *
 	 * Contains SQL snippet
+	 * @var string
 	 */
 	private $sql = "";
 
@@ -80,7 +78,7 @@ class RedBean_Adapter_DBAdapter extends RedBean_Observable implements RedBean_Ad
 	public function exec( $sql , $aValues=array(), $noevent=false) {
 		if (!$noevent) {
 			$this->sql = $sql;
-			$this->signal("sql_exec", $this);
+			$this->signal('sql_exec', $this);
 		}
 		return $this->db->Execute( $sql, $aValues );
 	}
@@ -102,7 +100,7 @@ class RedBean_Adapter_DBAdapter extends RedBean_Observable implements RedBean_Ad
 	 */
 	public function get( $sql, $aValues = array() ) {
 		$this->sql = $sql;
-		$this->signal("sql_exec", $this);
+		$this->signal('sql_exec', $this);
 		return $this->db->GetAll( $sql,$aValues );
 	}
 
@@ -123,7 +121,7 @@ class RedBean_Adapter_DBAdapter extends RedBean_Observable implements RedBean_Ad
 	 */
 	public function getRow( $sql, $aValues = array() ) {
 		$this->sql = $sql;
-		$this->signal("sql_exec", $this);
+		$this->signal('sql_exec', $this);
 		return $this->db->GetRow( $sql,$aValues );
 	}
 
@@ -145,7 +143,7 @@ class RedBean_Adapter_DBAdapter extends RedBean_Observable implements RedBean_Ad
 	 */
 	public function getCol( $sql, $aValues = array() ) {
 		$this->sql = $sql;
-		$this->signal("sql_exec", $this);
+		$this->signal('sql_exec', $this);
 		return $this->db->GetCol( $sql,$aValues );
 	}
 
@@ -171,23 +169,22 @@ class RedBean_Adapter_DBAdapter extends RedBean_Observable implements RedBean_Ad
 	 */
 	public function getAssoc( $sql, $aValues = array() ) {
 		$this->sql = $sql;
-		$this->signal("sql_exec", $this);
+		$this->signal('sql_exec', $this);
 		$rows = $this->db->GetAll( $sql, $aValues );
 		$assoc = array();
 		if ($rows) {
 			foreach($rows as $row) {
 				if (count($row)>0) {
-					$key = array_shift($row);
+					if (count($row)>1) {
+						$key = array_shift($row);
+						$value = array_shift($row);
+					}
+					elseif (count($row)==1) {
+						$key = array_shift($row);
+						$value=$key;
+					}
+					$assoc[ $key ] = $value;
 				}
-
-				if (count($row)>0) {
-					$value = array_shift($row);
-				}
-				else {
-					$value = $key;
-				}
-
-				$assoc[ $key ] = $value;
 			}
 		}
 		return $assoc;
@@ -212,7 +209,7 @@ class RedBean_Adapter_DBAdapter extends RedBean_Observable implements RedBean_Ad
 
 	public function getCell( $sql, $aValues = array(), $noSignal = null ) {
 		$this->sql = $sql;
-		if (!$noSignal) $this->signal("sql_exec", $this);
+		if (!$noSignal) $this->signal('sql_exec', $this);
 		$arr = $this->db->getCol( $sql, $aValues );
 		if ($arr && is_array($arr))	return ($arr[0]); else return false;
 	}
@@ -242,15 +239,6 @@ class RedBean_Adapter_DBAdapter extends RedBean_Observable implements RedBean_Ad
 	 */
 	public function getDatabase() {
 		return $this->db;
-	}
-
-	/**
-	 * Return latest error message.
-	 * 
-	 * @return string $message most recent error message
-	 */
-	public function getErrorMsg() {
-		return $this->db->Errormsg();
 	}
 
 	/**

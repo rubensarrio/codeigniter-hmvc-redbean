@@ -2,6 +2,7 @@
 /**
  * QueryWriter
  * Interface for QueryWriters
+ * 
  * @file			RedBean/QueryWriter.php
  * @description		Describes the API for a QueryWriter
  * @author			Gabor de Mooij
@@ -17,7 +18,7 @@
  * just FROZEN mode should implement the IceWriter instead.
  *
  *
- * (c) G.J.G.T. (Gabor) de Mooij
+ * copyright (c) G.J.G.T. (Gabor) de Mooij
  * This source file is subject to the BSD/GPLv2 License that is bundled
  * with this source code in the file license.txt.
  */
@@ -43,15 +44,6 @@ interface RedBean_QueryWriter {
 	 * been found in the database.
 	 */
 	const C_SQLSTATE_INTEGRITY_CONSTRAINT_VIOLATION = 3;
-
-	/**
-	 * Returns the table to store beans of a given type.
-	 *
-	 * @param string $type type of bean you want the table name of
-	 *
-	 * @return string $tableName name of the table where bean records are stored
-	 */
-	public function getFormattedTableName($type);
 
 	/**
 	 * Returns the tables that are in the database.
@@ -94,7 +86,7 @@ interface RedBean_QueryWriter {
 	 *
 	 * @return integer $type type
 	 */
-	public function scanType($value);
+	public function scanType($value, $alsoScanSpecialForTypes=false);
 
 	/**
 	 * This method should add a column to a table.
@@ -149,7 +141,7 @@ interface RedBean_QueryWriter {
 	 */
 	public function updateRecord($type, $updatevalues, $id=null);
 
-	
+
 	/**
 	 * This method should select a record. You should be able to provide a
 	 * collection of conditions using the following format:
@@ -182,17 +174,7 @@ interface RedBean_QueryWriter {
 	 */
 	public function addUniqueIndex($type,$columns);
 
-	/**
-	 * Returns the property that contains the Primary Key ID in an
-	 * OODBBean instance.
-	 * 
-	 * @param string $tableOfTheBean
-	 *
-	 * @return void
-	 */
-	public function getIDField($type);
-
-
+	
 	/**
 	 * This method should check whether the SQL state is in the list of specified states
 	 * and returns true if it does appear in this list or false if it
@@ -227,46 +209,6 @@ interface RedBean_QueryWriter {
 	 */
 	public function count($type);
 
-
-
-	/**
-	 * This method should set the new bean formatter. A bean formatter is an instance
-	 * of the class BeanFormatter that determines how a bean should be represented
-	 * in the database.
-	 *
-	 * @param RedBean_IBeanFormatter $beanFormatter bean format
-	 *
-	 * @return void
-	 */
-	public function setBeanFormatter(RedBean_IBeanFormatter $beanFormatter);
-
-	/**
-	 * This method should create a view with name $viewID and
-	 * based on the reference type. A list of types
-	 * will be provided in the second argument. This method should create
-	 * a view by joining each type in the list (using LEFT OUTER JOINS) to the
-	 * reference type. If a type is mentioned multiple times it does not need
-	 * to be re-joined but the next type should be joined to that type instead.
-	 * This methods accepts a type and infers the corresponding table name.
-	 *
-	 * @param  string $referenceType reference type
-	 * @param  array  $constraints   list of types
-	 * @param  string $viewID		 name of the new view
-	 *
-	 * @return void
-	 */
-	public function createView($referenceType, $types, $viewID);
-
-	/**
-	 * Given a field type const. from this class this method should
-	 * return the database specific SQL description of the data type.
-	 *
-	 * @param integer $type data type constant
-	 *
-	 * @return void
-	 */
-	public function getFieldType($type = "");
-
 	/**
 	 * This method should filter a column name so that it can
 	 * be used safely in a query for a specific database.
@@ -296,23 +238,10 @@ interface RedBean_QueryWriter {
 	 *
 	 * @param RedBean_OODBBean $bean1      first bean
 	 * @param RedBean_OODBBean $bean2      second bean
-	 * @param bool 			   $dontCache  by default we use a cache, TRUE = NO CACHING (optional)
 	 *
 	 * @return void
 	 */
-	public function addConstraint( RedBean_OODBBean $bean1, RedBean_OODBBean $bean2, $dontCache = false );
-
-	/**
-	 * This method should return the format for link tables.
-	 * Given an array containing two type names this method returns the
-	 * name of the link table to be used to store and retrieve
-	 * association records.
-	 *
-	 * @param  array $types two types array($type1,$type2)
-	 *
-	 * @return string $linktable name of the link table
-	 */
-	public function getAssocTableFormat($types);
+	public function addConstraint( RedBean_OODBBean $bean1, RedBean_OODBBean $bean2 );
 
 	/**
 	 * This method should add a foreign key from type and field to
@@ -346,26 +275,13 @@ interface RedBean_QueryWriter {
 	 * @return void
 	 */
 	public function addIndex($type, $name, $column);
-
-
+	
 	/**
-	 * This method should return the true type name of a given alias.
-	 * For instance 'magazine' -> 'book' if magazine is just another name
-	 * of the real 'type' called book.
-	 *
-	 * @param  string $type type
-	 *
-	 * @return string $realType type
+	 * Returns a modified value from ScanType.
+	 * Used for special types.
+	 * 
+	 * @return mixed $value changed value 
 	 */
-	public function getAlias($type);
-
-
-	/**
-	 * This method should return the datatype to be used for primary key IDS and
-	 * foreign keys. Return one if the data type constants.
-	 *
-	 * @return integer $const data type to be used for IDS.
-	 */
-	public function getTypeForID();
+	public function getValue();
 
 }

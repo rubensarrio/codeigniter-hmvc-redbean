@@ -1,14 +1,18 @@
 <?php
-/*
- * ModelHelper
+/**
+ * RedBean Model Helper
+ * 
+ * @file			RedBean/ModelHelper.php
+ * @description		Connects beans to models, in essence 
+ *					this is the core of so-called FUSE.
+ * 		
  * @author			Gabor de Mooij
  * @license			BSD
  *
- *
- * (c) G.J.G.T. (Gabor) de Mooij
+ * copyright (c) G.J.G.T. (Gabor) de Mooij
  * This source file is subject to the BSD/GPLv2 License that is bundled
  * with this source code in the file license.txt.
- * Interface definition of a Model Formatter for Fuse
+ *
  */
 class RedBean_ModelHelper implements RedBean_Observer {
 
@@ -35,17 +39,18 @@ class RedBean_ModelHelper implements RedBean_Observer {
 	 * full model name.
 	 *
 	 * @param string $model
+	 * @param RedBean_OODBBean $bean
+	 * 
 	 * @return string $fullname
 	 */
-	public static function getModelName( $model ) {
+	public static function getModelName( $model, $bean = null ) {
 		if (self::$modelFormatter){
 			return self::$modelFormatter->formatModel($model);
 		}
 		else {
-			return "Model_".ucfirst($model);
+			return 'Model_'.ucfirst($model);
 		}
 	}
-
 
 	/**
 	 * Sets the model formatter to be used to discover a model
@@ -53,9 +58,9 @@ class RedBean_ModelHelper implements RedBean_Observer {
 	 *
 	 * @param string $modelFormatter
 	 */
-	public static function setModelFormatter( RedBean_IModelFormatter $modelFormatter ) {
+	public static function setModelFormatter( $modelFormatter ) {
 		self::$modelFormatter = $modelFormatter;
 	}
-	
+
 
 }

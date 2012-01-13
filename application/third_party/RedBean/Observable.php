@@ -2,19 +2,20 @@
 /**
  * Observable
  * Base class for Observables
- * @file 		RedBean/Observable.php
+ * 
+ * @file 			RedBean/Observable.php
  * @description		Part of the observer pattern in RedBean
  * @author			Gabor de Mooij
  * @license			BSD
  *
  *
- * (c) G.J.G.T. (Gabor) de Mooij
+ * copyright (c) G.J.G.T. (Gabor) de Mooij
  * This source file is subject to the BSD/GPLv2 License that is bundled
  * with this source code in the file license.txt.
  */
 abstract class RedBean_Observable {
 	/**
-	 *	 
+	 * Array that keeps track of observers.
 	 * @var array
 	 */
 	private $observers = array();
@@ -48,7 +49,7 @@ abstract class RedBean_Observable {
 	 * This method is provided by the abstract class Observable for
 	 * convience. Observables can use this method to notify their
 	 * observers by sending an event ID and information parameter.
-	 * 
+	 *
 	 * @param string $eventname eventname
 	 * @param mixed  $info      info
 	 * @return unknown_ty
@@ -60,8 +61,5 @@ abstract class RedBean_Observable {
 		foreach($this->observers[$eventname] as $observer) {
 			$observer->onEvent( $eventname, $info );
 		}
-
 	}
-
-
 }

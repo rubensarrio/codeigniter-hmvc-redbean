@@ -10,26 +10,11 @@
  * @license			BSD
  *
  *
- * (c) G.J.G.T. (Gabor) de Mooij
+ * copyright (c) G.J.G.T. (Gabor) de Mooij
  * This source file is subject to the BSD/GPLv2 License that is bundled
  * with this source code in the file license.txt.
  */
 interface RedBean_Driver {
-
-	/**
-	 * Implements Singleton (or multiton)
-	 * Requests an instance of the database
-	 * Returns an instance of the driver Driver wrapper.
-	 *
-	 * @param string $dsn    Database connection string
-	 * @param string $user   DB account to be used
-	 * @param string $pass   password
-	 * @param string $dbname name of the database you
-	 *
-	 * @return RedBean_Driver $driver	  driver wrapper instance
-	 */
-	public static function getInstance( $host, $user, $pass, $dbname );
-
 	/**
 	 * Runs a query and fetches results as a multi dimensional array.
 	 *
@@ -66,22 +51,6 @@ interface RedBean_Driver {
 	 * @return array $row result row
 	 */
 	public function GetRow( $sql, $aValues=array() );
-
-	/**
-	 * Returns the error constant of the most
-	 * recent error.
-	 *
-	 * @return mixed $error error code
-	 */
-	public function ErrorNo();
-
-	/**
-	 * Returns the error message of the most recent
-	 * error.
-	 *
-	 * @return string $message error message
-	 */
-	public function Errormsg();
 
 	/**
 	 * Executes SQL code and allows key-value binding.
@@ -139,13 +108,6 @@ interface RedBean_Driver {
 	 * @return void
 	 */
 	public function setDebugMode( $tf );
-
-	/**
-	 * Returns a raw result resource from the underlying driver driver.
-	 *
-	 * @return Resource $driverResult driver result resource object
-	 */
-	public function GetRaw();
 
 	/**
 	 * Starts a transaction.

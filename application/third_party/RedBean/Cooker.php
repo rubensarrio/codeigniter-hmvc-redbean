@@ -1,124 +1,26 @@
 <?php
- /**
- * @name RedBean Cooker
- * @file RedBean
- * @author Gabor de Mooij and the RedBean Team
- * @copyright Gabor de Mooij (c)
- * @license BSD
+/**
+ * RedBean Cooker
+ * @file			RedBean/Cooker.php
+ * @description		Turns arrays into bean collections for easy persistence.
+ * @author			Gabor de Mooij
+ * @license			BSD
  *
  * The Cooker is a little candy to make it easier to read-in an HTML form.
  * This class turns a form into a collection of beans plus an array
  * describing the desired associations.
  *
- * (c) G.J.G.T. (Gabor) de Mooij
+ * copyright (c) G.J.G.T. (Gabor) de Mooij
  * This source file is subject to the BSD/GPLv2 License that is bundled
  * with this source code in the file license.txt.
  */
 class RedBean_Cooker {
-	/**
-	 * This method will inspect the array provided and load/dispense the
-	 * desired beans. To dispense a new bean, the array must contain:
-	 *
-	 * array( "newuser"=> array("type"=>"user","name"=>"John") )
-	 *
-	 * - Creates a new bean of type user, property name is set to "John"
-	 *
-	 * To load a bean (for association):
-	 *
-	 * array( "theaddress"=> array("type"=>"address","id"=>2) )
-	 * 
-	 * - Loads a bean of type address with ID 2
-	 *
-	 * Now to associate this bean in your form:
-	 *
-	 * array("associations"=>array( "0" => array( "newuser-theaddress" ) ))
-	 *
-	 * - Associates the beans under keys newuser and theaddress.
-	 *
-	 * To modify an existing bean:
-	 *
-	 * array("existinguser"=>array("type"=>"user","id"=>2,"name"=>"Peter"))
-	 *
-	 * - Changes name of bean of type user with ID 2 to 'Peter'
-	 *
-	 * This function returns:
-	 *
-	 * array(
-	 * 	"can" => an array with beans, either loaded or dispensed and populated
-	 *  "pairs" => an array with pairs of beans to be associated
-	 *  "sorted" => sorted by type
-	 * );
-	 *
-	 * Note that this function actually does not store or associate anything at all,
-	 * it just prepares two arrays.
-	 *
-	 * @static
-	 * @param  $post the POST array containing the form data
-	 * @return array hash table containing 'can' and 'pairs'
-	 *
-	 */
-	public static function load($post, RedBean_ToolBox $toolbox) {
-		$writer = $toolbox->getWriter();
-		//fetch associations first and remove them from the array.
-		if (isset($post["associations"])) {
-			$associations = $post["associations"];
-			unset($post["associations"]);
-		}
-		//We store beans here
-		$can = $pairs = $sorted = array();
-		foreach($post as $key => $rawBean) {
-			if (is_array($rawBean) && isset($rawBean["type"])) {
-				//get type and remove it from array
-				$type = $rawBean["type"];
-				unset($rawBean["type"]);
-				//does it have an ID?
-				$idfield = $writer->getIDField($type);
-				if (isset($rawBean[$idfield])) {
-					//yupz, get the id and remove it from array
-					$id = $rawBean[$idfield];
-					//ID == 0, and no more fields then this is an NULL option for a relation, skip.
-					if ($id==0 && count($rawBean)===1) continue;
-					unset($rawBean[$idfield]);
-					//now we have the id, load the bean and store it in the can
-					$bean = R::load($type, $id);
-				}
-				else { //no id? then get a new bean...
-					$bean = R::dispense($type);
-				}
-				//do we need to modify this bean?
-				foreach($rawBean as $field=>$value){
-					if (!empty($value)) $bean->$field = $value;
-				}
-				$can[$key]=$bean;
-				if (!isset($sorted[$type]))  $sorted[$type]=array();
-				$sorted[$type][]=$bean;
-			}
-		}
-		if (isset($associations) && is_array($associations)) {
-			foreach($associations as $assoc) {
-				foreach($assoc as $info) {
-					if ($info=="0" || $info=="") continue;
-					$keys = explode("-", $info);
-					//first check if we can find the key in the can, --only key 1 is able to load
-					if (isset($can[$keys[0]])) $bean1 = $can[$keys[0]]; else {
-						$loader = explode(":",$keys[0]);
-						$bean1 = R::load( $loader[0], $loader[1] );
-					} 
-					$bean2 = $can[$keys[1]];
-					$pairs[] = array( $bean1, $bean2 );
-				}
-			}
-		}
-		return array(
-			"can"=>$can, //contains the beans
-			"pairs"=>$pairs, //contains pairs of beans
-			"sorted"=>$sorted //contains beans sorted by type
-		);
-	}
 
+	private $flagUnsafe = false;
+	
 	/**
 	 * Sets the toolbox to be used by graph()
-	 * 
+	 *
 	 * @param RedBean_Toolbox $toolbox toolbox
 	 * @return void
 	 */
@@ -128,30 +30,87 @@ class RedBean_Cooker {
 	}
 
 	/**
-	 * Turns a request array into a collection of beans
+	 * Turns an array (post/request array) into a collection of beans.
+	 * Handy for turning forms into bean structures that can be stored with a
+	 * single call.
+	 * 
+	 * Typical usage:
+	 * 
+	 * $struct = R::graph($_POST);
+	 * R::store($struct);
+	 * 
+	 * Example of a valid array:
+	 * 
+	 *	$form = array(
+	 *		'type'=>'order',
+	 *		'ownProduct'=>array(
+	 *			array('id'=>171,'type'=>'product'),
+	 *		),
+	 *		'ownCustomer'=>array(
+	 *			array('type'=>'customer','name'=>'Bill')
+	 *		),
+	 * 		'sharedCoupon'=>array(
+	 *			array('type'=>'coupon','name'=>'123'),
+	 *			array('type'=>'coupon','id'=>3)
+	 *		)
+	 *	);
+	 * 
+	 * Each entry in the array will become a property of the bean.
+	 * The array needs to have a type-field indicating the type of bean it is
+	 * going to be. The array can have nested arrays. A nested array has to be
+	 * named conform the bean-relation conventions, i.e. ownPage/sharedPage
+	 * each entry in the nested array represents another bean.
+	 *  
+	 * @param	array   $array       array to be turned into a bean collection
+	 * @param   boolean $filterEmpty whether you want to exclude empty beans
 	 *
-	 * @param  $array array
-	 *
-	 * @return array $beans beans
+	 * @return	array $beans beans
 	 */
-	public function graph( $array ) {
+	public function graph( $array, $filterEmpty = false ) {
+                if(is_array($array) && isset($array['type']) && is_array(@$array['id'])){ // allowing multi-select and multi-checkbox by restructuring the array.
+                    foreach($array['id'] as $key=>$value){
+                        foreach($array as $kk=>$vv){
+                            if(is_array($vv)) {
+                                if(isset($vv[$key])) $new[$key][$kk] = $vv[$key];
+                            }
+                            else $new[$key][$kk] = $vv;
+                        }
+                        
+                    }
+                    $array = $new;
+                    unset($new);                    
+                }
+                
 		$beans = array();
-		if (is_array($array) && isset($array["type"])) {
-			$type = $array["type"];
-			unset($array["type"]);
+		if (is_array($array) && isset($array['type'])) {
+			$type = $array['type'];
+			unset($array['type']);
 			//Do we need to load the bean?
-			if (isset($array["id"])) {
-				$id = (int) $array["id"];
-				$bean = $this->redbean->load($type,$id);
+			if (isset($array['id'])) {
+				$id = (int) $array['id'];
+				unset($array['id']);
+				if (count($array)>0) {
+					//$bean = $this->redbean->load($type,$id);
+					$bean = $this->loadFromPool($type,$id,'w');
+				}
+				else {
+					//no more properties besides type and id, read is enough.
+					$bean = $this->loadFromPool($type,$id,'r');
+				}
 			}
 			else {
 				$bean = $this->redbean->dispense($type);
 			}
+			
 			foreach($array as $property=>$value) {
 				if (is_array($value)) {
-					$bean->$property = $this->graph($value);
+					$bean->$property = $this->graph($value,$filterEmpty);
 				}
 				else {
+					if (strpos($property,'_id')!==false) {
+						//property contains a reference -- must be checked
+						$this->loadFromPool(substr($property,0,-3), $value,'r');
+					}
 					$bean->$property = $value;
 				}
 			}
@@ -159,13 +118,58 @@ class RedBean_Cooker {
 		}
 		elseif (is_array($array)) {
 			foreach($array as $key=>$value) {
-				$beans[$key] = $this->graph($value);
+				$listBean = $this->graph($value,$filterEmpty);
+				if (!($listBean instanceof RedBean_OODBBean)) {
+					throw new RedBean_Exception_Security('Expected bean but got :'.gettype($listBean)); 
+				}
+				if ($listBean->isEmpty()) {  
+					if (!$filterEmpty) { 
+						$beans[$key] = $listBean;
+					}
+				}
+				else { 
+					$beans[$key] = $listBean;
+				}
 			}
 			return $beans;
 		}
 		else {
-			return $array;
+			throw new RedBean_Exception_Security('Expected array but got :'.gettype($array)); 
 		}
-		return $beans;
 	}
+	
+	public function loadFromPool($type, $id, $policy) {
+		if ($this->flagUnsafe) return R::load($type,$id);
+		if ($policy!='r' && $policy!='w') {
+			throw new RedBean_Security_Exception('Illegal policy.');
+		}
+		if (!isset($this->pool[$policy][$type][$id])) {
+			throw new RedBean_Exception_Security('Access Denied, user has no '.$policy.'-access to: '.$type.' - '.$id);
+		}
+		else {
+			return $this->pool[$policy][$type][$id];
+		}
+	}
+	
+	public function addToPool($beans, $policy='r') {
+		if ($policy!='r' && $policy!='w') {
+			throw new RedBean_Security_Exception('Illegal policy.');
+		}
+		if (is_array($beans)) {
+			foreach($beans as $bean) $this->addToPool($bean);
+		}
+		else {
+			$bean = $beans;
+			$this->pool[$policy][$bean->getMeta('type')][$bean->id] = $bean;
+		}
+	} 
+	
+	public function cleanPool() {
+		$this->pool = array();
+	}
+	
+	public function setUnsafe($tf) {
+		$this->flagUnsafe = $tf;
+	}
+	
 }

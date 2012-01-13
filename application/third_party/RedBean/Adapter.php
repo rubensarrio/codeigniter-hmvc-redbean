@@ -1,7 +1,7 @@
 <?php
 /**
  * Adapter Interface
- * 
+ *
  * @file 			RedBean/Adapter.php
  * @description		Describes the API for a RedBean Database Adapter.
  * @author			Gabor de Mooij
@@ -129,14 +129,7 @@ interface RedBean_Adapter {
 	 * @return object $driver driver
 	 */
 	public function getDatabase();
-
-	/**
-	 * Returns the latest error message; if any.
-	 *
-	 * @return string $message error message from server
-	 */
-	public function getErrorMsg();
-
+	
 	/**
 	 * This method is part of the RedBean Transaction Management
 	 * mechanisms.
