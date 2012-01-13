@@ -1,8 +1,8 @@
-# CodeIgniter 2 + HMVC + RedBean
+# CodeIgniter 2.1 + HMVC + RedBean 3
 
 Setup ready to use CodeIgniter framework with:
 
--	[CodeIgniter 2.0.2](http://codeigniter.com)
+-	[CodeIgniter 2.1](http://codeigniter.com)
 - [Modular Extensions - HMVC](http://bitbucket.org/wiredesignz/codeigniter-modular-extensions-hmvc/overview)
 - [RedBean 3.0.3](http//redbeanphp.com)
 
