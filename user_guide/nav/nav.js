@@ -37,7 +37,16 @@ function create_menu(basepath)
 			'<li><a href="'+base+'overview/mvc.html">Model-View-Controller</a></li>' +
 			'<li><a href="'+base+'overview/goals.html">Architectural Goals</a></li>' +
 		'</ul>' +
-
+		
+		'<h3>Tutorial</h3>' +
+		'<ul>' +
+			'<li><a href="'+base+'tutorial/index.html">Introduction</a></li>' +
+			'<li><a href="'+base+'tutorial/static_pages.html">Static pages</a></li>' +
+			'<li><a href="'+base+'tutorial/news_section.html">News section</a></li>' +
+			'<li><a href="'+base+'tutorial/create_news_items.html">Create news items</a></li>' +
+			'<li><a href="'+base+'tutorial/conclusion.html">Conclusion</a></li>' +
+		'</ul>' +
+		
 		'</td><td class="td_sep" valign="top">' +
 
 		'<h3>General Topics</h3>' +
@@ -50,6 +59,8 @@ function create_menu(basepath)
 			'<li><a href="'+base+'general/helpers.html">Helpers</a></li>' +
 			'<li><a href="'+base+'general/libraries.html">Using CodeIgniter Libraries</a></li>' +
 			'<li><a href="'+base+'general/creating_libraries.html">Creating Your Own Libraries</a></li>' +
+			'<li><a href="'+base+'general/drivers.html">Using CodeIgniter Drivers</a></li>' +
+			'<li><a href="'+base+'general/creating_drivers.html">Creating Your Own Drivers</a></li>' +
 			'<li><a href="'+base+'general/core_classes.html">Creating Core Classes</a></li>' +
 			'<li><a href="'+base+'general/hooks.html">Hooks - Extending the Core</a></li>' +
 			'<li><a href="'+base+'general/autoloader.html">Auto-loading Resources</a></li>' +
@@ -92,6 +103,7 @@ function create_menu(basepath)
 		'<li><a href="'+base+'libraries/javascript.html">Javascript Class</a></li>' +
 		'<li><a href="'+base+'libraries/loader.html">Loader Class</a></li>' +
 		'<li><a href="'+base+'libraries/language.html">Language Class</a></li>' +
+		'<li><a href="'+base+'libraries/migration.html">Migration Class</a></li>' +
 		'<li><a href="'+base+'libraries/output.html">Output Class</a></li>' +
 		'<li><a href="'+base+'libraries/pagination.html">Pagination Class</a></li>' +
 		'<li><a href="'+base+'libraries/security.html">Security Class</a></li>' +

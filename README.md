@@ -4,7 +4,7 @@ Setup ready to use CodeIgniter framework with:
 
 -	[CodeIgniter 2.0.2](http://codeigniter.com)
 - [Modular Extensions - HMVC](http://bitbucket.org/wiredesignz/codeigniter-modular-extensions-hmvc/overview)
-- [RedBean 2.0](http//redbeanphp.com)
+- [RedBean 3.0.3](http//redbeanphp.com)
 
 ## How to use?
 
