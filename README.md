@@ -2,9 +2,9 @@
 
 Setup ready to use CodeIgniter framework with:
 
--	[CodeIgniter 2.1](http://codeigniter.com)
+- [CodeIgniter 2.1.3](http://codeigniter.com)
 - [Modular Extensions - HMVC](http://bitbucket.org/wiredesignz/codeigniter-modular-extensions-hmvc/overview)
-- [RedBean 3.0.3](http//redbeanphp.com)
+- [RedBean 3.3.7](http//redbeanphp.com)
 
 ## How to use?
 
@@ -24,32 +24,37 @@ Or load RedBean library in any controller, example:
 
 You can use RedBean API in your controller:
 
-	$this->rb->debug(TRUE);
+	R::debug(TRUE);
 	
-Or anywhere
-
-	RB::debug(TRUE);
 	
 Examples:
 
 	// New bean
-	$post = $this->rb->dispense('post');
+	$post = R::dispense('post');
 	
 	// Load bean by id
-	$post = $this->rb->load('post', 1);
+	$post = R::load('post', 1);
 	
 	// Find all beans
-	$posts = $this->rb->find('post');
+	$posts = R::find('post');
 	
 	// Find beans
-	$posts = $this->rb->find('post', 'published = 1');
+	$posts = R::find('post', 'published = 1');
 	
 	// Save bean
-	$this->rb->store($post);
+	R::store($post);
 	
+### Using HMVC
+
+With HMVC you can build your application modulair. 
+
+You can find the standard welcome page in:
+
+	/application/modules/welcome/controllers/welcome.php
+
 ## More information
 
 - [CodeIgniter user guide](http://codeigniter.com/user_guide)
-- [HMVC Wiki](http://bitbucket.org/wiredesignz/codeigniter-modular-extensions-hmvc/wiki)
+- [HMVC detail page](https://bitbucket.org/wiredesignz/codeigniter-modular-extensions-hmvc/overview)
 - [RedBean manual](http://www.redbeanphp.com/)
 - [RedBean forum](http://groups.google.com/group/redbeanorm)
